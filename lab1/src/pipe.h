@@ -100,9 +100,6 @@ typedef struct Pipe_State {
     cache_t* icache;
     cache_t* dcache;
 
-    // termination to manage memory
-    int last_flag;
-
 } Pipe_State;
 
 /* global variable -- pipeline state */

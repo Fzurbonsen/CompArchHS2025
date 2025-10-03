@@ -91,11 +91,6 @@ void pipe_cycle()
 
         stat_squash++;
     }
-
-    if (pipe.last_flag) {
-        cache_destroy(pipe.icache);
-        cache_destroy(pipe.dcache);
-    }
 }
 
 void pipe_recover(int flush, uint32_t dest)
@@ -138,9 +133,6 @@ void pipe_stage_wb()
             // the fetch stage might be stalled an not do pc += 4 we need to account for that
             if (pipe.instruction_cache_stall > 1)
                 pipe.PC += 4;
-
-            // change flag to free memory
-            pipe.last_flag = 1;
         }
     }
 
