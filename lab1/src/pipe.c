@@ -9,8 +9,7 @@
 #include "pipe.h"
 #include "shell.h"
 #include "mips.h"
-#include "instructionCache.h" // added .h file for instruction cache
-#include "dataCache.h" // added .h file for data cache
+#include "cache.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -36,9 +35,8 @@ void pipe_init()
 {
     memset(&pipe, 0, sizeof(Pipe_State));
     pipe.PC = 0x00400000;
-    // pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
-    instruction_cache_init();
-    data_cache_init();
+    pipe.icache = cache_init(64, 4, 11, 5, 0x3F);
+    pipe.dcache = cache_init(256, 8, 13, 5, 0xFF);
 }
 
 void pipe_cycle()
@@ -166,7 +164,7 @@ void pipe_stage_mem()
 
         // if we are not still working on an old instruction we can get the new one.
         if (!pipe.data_stall) {
-            pipe.data_cache_stall = data_cache_stall_mem_read(op->mem_addr);
+            pipe.data_cache_stall = cache_stall(op->mem_addr, pipe.dcache);
             pipe.data_stall = 1;
             if (pipe.data_cache_stall > 0)
                 return;
@@ -707,7 +705,8 @@ void pipe_stage_fetch()
         return;
 
     if (!pipe.instruction_stall) {
-        pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC);
+        // pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC);
+        pipe.instruction_cache_stall = cache_stall(pipe.PC, pipe.icache);
         pipe.instruction_stall = 1;
         if (pipe.instruction_cache_stall > 0)
             return;

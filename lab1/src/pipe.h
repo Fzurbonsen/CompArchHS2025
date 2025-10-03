@@ -10,6 +10,7 @@
 #define _PIPE_H_
 
 #include "shell.h"
+#include "cache.h"
 
 /* Pipeline ops (instances of this structure) are high-level representations of
  * the instructions that actually flow through the pipeline. This struct does
@@ -94,6 +95,10 @@ typedef struct Pipe_State {
     
     int data_cache_stall; // data cache stall info
     int data_stall;
+
+    // caches:
+    cache_t* icache;
+    cache_t* dcache;
 
 } Pipe_State;
 
