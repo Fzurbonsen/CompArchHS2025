@@ -37,7 +37,6 @@ void pipe_init()
     pipe.PC = 0x00400000;
     pipe.icache = cache_init(64, 4, 11, 5, 0x3F);
     pipe.dcache = cache_init(256, 8, 13, 5, 0xFF);
-    pipe.last_flag = 0;
 }
 
 void pipe_cycle()
