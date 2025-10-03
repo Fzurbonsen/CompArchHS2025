@@ -9,12 +9,13 @@
 #include "pipe.h"
 #include "shell.h"
 #include "mips.h"
+#include "instructionCache.h" // added .h file for instruction cache
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
 
-//#define DEBUG
+// #define DEBUG
 
 /* debug */
 void print_op(Pipe_Op *op)
@@ -34,6 +35,8 @@ void pipe_init()
 {
     memset(&pipe, 0, sizeof(Pipe_State));
     pipe.PC = 0x00400000;
+    pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
+    instruction_cache_init();
 }
 
 void pipe_cycle()
@@ -45,7 +48,7 @@ void pipe_cycle()
     printf("MEM  : "); print_op(pipe.mem_op);
     printf("WB   : "); print_op(pipe.wb_op);
     printf("\n");
-#endif
+#endif // DEBUG
 
     pipe_stage_wb();
     pipe_stage_mem();
@@ -57,7 +60,7 @@ void pipe_cycle()
     if (pipe.branch_recover) {
 #ifdef DEBUG
         printf("branch recovery: new dest %08x flush %d stages\n", pipe.branch_dest, pipe.branch_flush);
-#endif
+#endif // DEBUG
 
         pipe.PC = pipe.branch_dest;
 
@@ -117,7 +120,7 @@ void pipe_stage_wb()
         pipe.REGS[op->reg_dst] = op->reg_dst_value;
 #ifdef DEBUG
         printf("R%d = %08x\n", op->reg_dst, op->reg_dst_value);
-#endif
+#endif // DEBUG
     }
 
     /* if this was a syscall, perform action */
@@ -125,6 +128,10 @@ void pipe_stage_wb()
         if (op->reg_src1_value == 0xA) {
             pipe.PC = op->pc; /* fetch will do pc += 4, then we stop with correct PC */
             RUN_BIT = 0;
+
+            // the fetch stage might be stalled an not do pc += 4 we need to account for that
+            if (pipe.instruction_cache_stall > 1)
+                pipe.PC += 4;
         }
     }
 
@@ -208,14 +215,14 @@ void pipe_stage_mem()
         case OP_SH:
 #ifdef DEBUG
             printf("SH: addr %08x val %04x old word %08x\n", op->mem_addr, op->mem_value & 0xFFFF, val);
-#endif
+#endif // DEBUG
             if (op->mem_addr & 2)
                 val = (val & 0x0000FFFF) | (op->mem_value) << 16;
             else
                 val = (val & 0xFFFF0000) | (op->mem_value & 0xFFFF);
 #ifdef DEBUG
             printf("new word %08x\n", val);
-#endif
+#endif // DEBUG
 
             mem_write_32(op->mem_addr & ~3, val);
             break;
@@ -666,8 +673,15 @@ void pipe_stage_decode()
 
 void pipe_stage_fetch()
 {
+    // if an instruction cache stall is in process decrease the count untill it is ready
+    if (pipe.instruction_cache_stall > 0)
+        pipe.instruction_cache_stall--;
+
     /* if pipeline is stalled (our output slot is not empty), return */
     if (pipe.decode_op != NULL)
+        return;
+
+    if (pipe.instruction_cache_stall > 0)
         return;
 
     /* Allocate an op and send it down the pipeline. */
@@ -678,9 +692,13 @@ void pipe_stage_fetch()
     op->instruction = mem_read_32(pipe.PC);
     op->pc = pipe.PC;
     pipe.decode_op = op;
+    // fprintf(stderr, "0x%08X -> \t", pipe.PC);
+    
 
     /* update PC */
     pipe.PC += 4;
+    // fprintf(stderr, "0x%08X\n", pipe.PC);
+    pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
 
     stat_inst_fetch++;
 }

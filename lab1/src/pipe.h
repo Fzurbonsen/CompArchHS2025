@@ -15,7 +15,7 @@
  * the instructions that actually flow through the pipeline. This struct does
  * not correspond 1-to-1 with the control signals that would actually pass
  * through the pipeline. Rather, it carries the original instruction, operand
- * information and values as they are collected, and destination information. */
+ * information and values as they are collected, and destination informatiosn. */
 typedef struct Pipe_Op {
     /* PC of this instruction */
     uint32_t pc;
@@ -89,6 +89,8 @@ typedef struct Pipe_State {
     int multiplier_stall; /* number of remaining cycles until HI/LO are ready */
 
     /* place other information here as necessary */
+    // instruction cache stall info
+    int instruction_cache_stall;
 
 } Pipe_State;
 
@@ -113,4 +115,4 @@ void pipe_stage_execute();
 void pipe_stage_mem();
 void pipe_stage_wb();
 
-#endif
+#endif // _PIPE_H_

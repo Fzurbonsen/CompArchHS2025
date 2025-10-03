@@ -74,6 +74,13 @@ def run(i):
     (r, r_err) = refproc.communicate(input=cmds)
     (s, s_err) = simproc.communicate(input=cmds)
 
+    # --- NEW: show sim outputs ---
+    # print(bold + "\n--- ./sim stdout ---" + normal)
+    # print(s.decode('utf-8'))
+    if s_err:
+        print(red + "\n--- ./sim stderr ---" + normal)
+        print(s_err.decode('utf-8'))
+
     return filter_stats(r.decode('utf-8')), filter_stats(s.decode('utf-8'))
 
 
