@@ -10,6 +10,7 @@
 #include "shell.h"
 #include "mips.h"
 #include "instructionCache.h" // added .h file for instruction cache
+#include "dataCache.h" // added .h file for data cache
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -143,6 +144,10 @@ void pipe_stage_wb()
 
 void pipe_stage_mem()
 {
+    // decrease the data cache stall tracker
+    if (pipe.data_cache_stall > 0)
+        pipe.data_cache_stall--;
+
     /* if there is no instruction in this pipeline stage, we are done */
     if (!pipe.mem_op)
         return;
@@ -151,8 +156,23 @@ void pipe_stage_mem()
     Pipe_Op *op = pipe.mem_op;
 
     uint32_t val = 0;
-    if (op->is_mem)
+    if (op->is_mem) {
         val = mem_read_32(op->mem_addr & ~3);
+
+        // if the the data is not yet ready we need to stall and are done
+        if (pipe.data_cache_stall > 0)
+            return;
+
+        // if we are not still working on an old instruction we can get the new one.
+        if (!pipe.data_stall) {
+            pipe.data_cache_stall = data_cache_stall_mem_read(op->mem_addr);
+            pipe.data_stall = 1;
+            return;
+        }
+
+        // the memory for this instruction is ready and we can execute it.
+        pipe.data_stall = 0;
+    }
 
     switch (op->opcode) {
         case OP_LW:

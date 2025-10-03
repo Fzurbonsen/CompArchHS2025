@@ -1,6 +1,6 @@
 SRC = $(wildcard src/*.c)
 INPUT ?= $(wildcard inputs/*/*.x)
-TEST_INPUT = $(shell pwd)/inputs/medium/additest.x
+TEST_INPUT = $(shell pwd)/inputs/long/primes.x
 
 .PHONY: all verify clean clean_all run run_local tests
 

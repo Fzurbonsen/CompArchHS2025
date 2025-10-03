@@ -6,9 +6,9 @@
  * 
  * Author: <Frederic zur Bonsen>
  * E-Mail: <fzurbonsen@ethz.ch>
- * s
+ * 
  * This file holds the definitions of the file instructinoCache.c.
- * It provides the structures to implement the instruction Cache simulation.
+ * It provides the structures to implement the instruction cache simulation.
 */
 
 #ifndef _INSTRUCTIONCACHE_H_
@@ -20,10 +20,10 @@
 
 // chache block struct: this struct represents a signle cache block and stores the relevant metadata
 typedef struct {
-    uint32_t tag; // tag PC >> 11 the [11:31] bits in the PC
+    uint32_t tag; // tag PC >> 11 the [31.11] bits in the PC
     int valid; // is this a valid cache block
     int lru; // smaller = less recently used
-} cache_block_t;
+} instruction_cache_block_t;
 
 /*
  * PRE:

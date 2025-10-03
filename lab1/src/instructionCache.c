@@ -17,11 +17,11 @@
 
 /*
  * Define the instruction cache:
- * The instruction cache has 64 sets and is a four-way chache.
+ * The instruction cache has 64 sets and is a four-way cache.
 */
 #define NUM_INSTRUCTION_CACHE_SETS 64
 #define NUM_INSTRUCTION_CACHE_WAYS 4
-cache_block_t instruction_cache[NUM_INSTRUCTION_CACHE_SETS][NUM_INSTRUCTION_CACHE_WAYS];
+instruction_cache_block_t instruction_cache[NUM_INSTRUCTION_CACHE_SETS][NUM_INSTRUCTION_CACHE_WAYS];
 
 
 // function to init insturction cache
@@ -37,7 +37,7 @@ void instruction_cache_init() {
 
 
 // function to update the lru of the current set
-int instruction_cache_update_lru(cache_block_t *set, uint32_t way, int lru) {
+int instruction_cache_update_lru(instruction_cache_block_t *set, uint32_t way, int lru) {
 
     // iterate over all ways in the set and update their lru
     for (int i = 0; i < NUM_INSTRUCTION_CACHE_WAYS; ++i) {
@@ -54,23 +54,22 @@ int instruction_cache_update_lru(cache_block_t *set, uint32_t way, int lru) {
 
 // function to calculate the number of cycles we need to stall for to simulate the fetching of the instruction
 int instruction_cache_stall_mem_read(uint32_t PC) {
-    uint32_t tag = PC >> 11; // PC[11:31]
+    uint32_t tag = PC >> 11; // PC[31:11]
     uint32_t set_index = (PC >> 5) & 0x3F; // PC[10:5]
 
-    cache_block_t *set = instruction_cache[set_index]; // get the set from the cache
+    instruction_cache_block_t *set = instruction_cache[set_index]; // get the set from the cache
 
     // seach the set for a tag match
     for (int i = 0; i < NUM_INSTRUCTION_CACHE_WAYS; ++i) {
 
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
-
             set[i].lru = instruction_cache_update_lru(set, i, set[i].lru); // update the LRU
             return 0; // we have a chache hit so we do not need to stall the pipeline
         }
     }
 
-    // if we have a cache miss add it to the cache and stall for 50 cycles
+    // if we have a cache miss add to the cache and stall for 50 cycles
     int victim = -1;
     int min_lru = NUM_INSTRUCTION_CACHE_WAYS;
 
