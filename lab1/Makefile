@@ -1,7 +1,7 @@
 SRC = $(wildcard src/*.c)
 INPUT ?= $(wildcard inputs/*/*.x)
 
-.PHONY: all verify clean
+.PHONY: all verify clean clean_all
 
 all: sim
 
@@ -16,4 +16,7 @@ run: sim
 
 clean:
 	rm -rf *.o *~ sim
+
+clean_all:
+	rm -rf *.o *~ sim basesim
 
