@@ -18,9 +18,9 @@ normal="\033[0m"
 
 def generate_parameters(max_cache_size_power):
     configs = []
-    cache_sizes = [2**i for i in range(2, max_cache_size_power+1)]
-    block_sizes = [2**i for i in range(1, 9)]
-    assocs = [2**i for i in range(0, 5)]
+    cache_sizes = [2**i for i in range(10, max_cache_size_power+1)]
+    block_sizes = [2**i for i in range(1, 10+1)]
+    assocs = [2**i for i in range(0, 10+1)]
 
     for size, block, assoc in product(cache_sizes, block_sizes, assocs):
         if block * assoc <= size:
@@ -50,7 +50,7 @@ def main():
 
     # generate paramters for parameter sweep
     parameters = []
-    for config in generate_parameters(2):
+    for config in generate_parameters(20):
         parameters.append(calculate_parameters(config[0], config[1], config[2]))
 
     total_parameters = []
