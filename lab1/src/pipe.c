@@ -35,8 +35,8 @@ void pipe_init()
 {
     memset(&pipe, 0, sizeof(Pipe_State));
     pipe.PC = 0x00400000;
-    pipe.icache = cache_init(64, 4, 11, 5, 0x3F);
-    pipe.dcache = cache_init(256, 8, 13, 5, 0xFF);
+    // pipe.icache = cache_init(64, 4, 11, 5, 0x3F);  // comented for testing purposes
+    // pipe.dcache = cache_init(256, 8, 13, 5, 0xFF);
 }
 
 void pipe_cycle()

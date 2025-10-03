@@ -169,7 +169,7 @@ void run(int num_cycles) {
 /*                                                             */
 /* Procedure : go                                              */
 /*                                                             */
-/* Purpose   : Simulate the MIPS until HALTed                 */
+/* Purpose   : Simulate the MIPS until HALTed                  */
 /*                                                             */
 /***************************************************************/
 void go() {                                                     
@@ -183,6 +183,52 @@ void go() {
     cycle();
   printf("Simulator halted\n\n");
 }
+
+
+
+
+/***************************************************************/
+/*                                                             */
+/* Procedure : my_tests                                        */
+/*                                                             */
+/* Purpose   : Run my tests                                    */
+/*                                                             */
+/***************************************************************/
+void my_tests() {                                                    
+  if (RUN_BIT == FALSE) {
+    printf("Can't simulate, Simulator is halted\n\n");
+    return;
+  }
+
+  int values[10]; // icache: n_sets, n_ways, tag_shift, set_index_shift, set_index_off
+                  // dcache: n_sets, n_ways, tag_shift, set_index_shift, set_index_off
+
+    for (int i = 0; i < 10; i++) {
+        printf("Enter value %d: ", i + 1);
+        if (scanf("%d", &values[i]) != 1) {
+            printf("Invalid input, setting value to 0.\n");
+            values[i] = 0;
+            // Clear input buffer
+            int c;
+            while ((c = getchar()) != '\n' && c != EOF);
+        }
+    }
+
+  pipe.icache = cache_init(values[0], values[1], values[2], values[3], values[4]);
+  pipe.dcache = cache_init(values[5], values[6], values[7], values[8], values[9]);
+
+  printf("Simulating...\n\n");
+  while (RUN_BIT)
+    cycle();
+  printf("Simulator halted\n\n");
+
+  printf("Cycles: %u\n", stat_cycles);
+  printf("IPC: %0.3f\n", ((float) stat_inst_retire) / stat_cycles);
+}
+
+
+
+
 
 /***************************************************************/ 
 /*                                                             */
@@ -249,7 +295,7 @@ void get_command() {
   switch(buffer[0]) {
   case 'G':
   case 'g':
-    go();
+    my_tests(); // modifed: go(); -> my_tests();
     break;
 
   case 'M':
