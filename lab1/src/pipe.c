@@ -36,7 +36,7 @@ void pipe_init()
 {
     memset(&pipe, 0, sizeof(Pipe_State));
     pipe.PC = 0x00400000;
-    pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
+    // pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
     instruction_cache_init();
     data_cache_init();
 }
@@ -168,7 +168,8 @@ void pipe_stage_mem()
         if (!pipe.data_stall) {
             pipe.data_cache_stall = data_cache_stall_mem_read(op->mem_addr);
             pipe.data_stall = 1;
-            return;
+            if (pipe.data_cache_stall > 0)
+                return;
         }
 
         // the memory for this instruction is ready and we can execute it.
@@ -705,6 +706,15 @@ void pipe_stage_fetch()
     if (pipe.instruction_cache_stall > 0)
         return;
 
+    if (!pipe.instruction_stall) {
+        pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC);
+        pipe.instruction_stall = 1;
+        if (pipe.instruction_cache_stall > 0)
+            return;
+    }
+
+    pipe.instruction_stall = 0;
+
     /* Allocate an op and send it down the pipeline. */
     Pipe_Op *op = malloc(sizeof(Pipe_Op));
     memset(op, 0, sizeof(Pipe_Op));
@@ -713,13 +723,11 @@ void pipe_stage_fetch()
     op->instruction = mem_read_32(pipe.PC);
     op->pc = pipe.PC;
     pipe.decode_op = op;
-    // fprintf(stderr, "0x%08X -> \t", pipe.PC);
     
 
     /* update PC */
     pipe.PC += 4;
-    // fprintf(stderr, "0x%08X\n", pipe.PC);
-    pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
 
     stat_inst_fetch++;
 }
+

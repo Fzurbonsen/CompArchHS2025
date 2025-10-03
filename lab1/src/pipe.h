@@ -90,6 +90,7 @@ typedef struct Pipe_State {
 
     /* place other information here as necessary */
     int instruction_cache_stall; // instruction cache stall info
+    int instruction_stall;
     
     int data_cache_stall; // data cache stall info
     int data_stall;
