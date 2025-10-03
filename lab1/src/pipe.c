@@ -38,6 +38,7 @@ void pipe_init()
     pipe.PC = 0x00400000;
     pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC) + 1;
     instruction_cache_init();
+    data_cache_init();
 }
 
 void pipe_cycle()
