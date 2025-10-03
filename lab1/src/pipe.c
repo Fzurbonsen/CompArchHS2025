@@ -45,7 +45,7 @@ void pipe_cycle()
     printf("MEM  : "); print_op(pipe.mem_op);
     printf("WB   : "); print_op(pipe.wb_op);
     printf("\n");
-#endif
+#endif // DEBUG
 
     pipe_stage_wb();
     pipe_stage_mem();
@@ -57,7 +57,7 @@ void pipe_cycle()
     if (pipe.branch_recover) {
 #ifdef DEBUG
         printf("branch recovery: new dest %08x flush %d stages\n", pipe.branch_dest, pipe.branch_flush);
-#endif
+#endif // DEBUG
 
         pipe.PC = pipe.branch_dest;
 
@@ -117,7 +117,7 @@ void pipe_stage_wb()
         pipe.REGS[op->reg_dst] = op->reg_dst_value;
 #ifdef DEBUG
         printf("R%d = %08x\n", op->reg_dst, op->reg_dst_value);
-#endif
+#endif // DEBUG
     }
 
     /* if this was a syscall, perform action */
@@ -208,14 +208,14 @@ void pipe_stage_mem()
         case OP_SH:
 #ifdef DEBUG
             printf("SH: addr %08x val %04x old word %08x\n", op->mem_addr, op->mem_value & 0xFFFF, val);
-#endif
+#endif // DEBUG
             if (op->mem_addr & 2)
                 val = (val & 0x0000FFFF) | (op->mem_value) << 16;
             else
                 val = (val & 0xFFFF0000) | (op->mem_value & 0xFFFF);
 #ifdef DEBUG
             printf("new word %08x\n", val);
-#endif
+#endif // DEBUG
 
             mem_write_32(op->mem_addr & ~3, val);
             break;
