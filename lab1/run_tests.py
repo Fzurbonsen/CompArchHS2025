@@ -39,7 +39,7 @@ def set_parameters():
     Use the desired list (baseline, full_cartesian, sweep_*).
     """
     # Useful discrete options (bytes)
-    cache_sizes = [16*1024, 32*1024, 64*1024, 128*1024, 256*1024, 512*1024, 1*1024*1024, 2*1024*1024]
+    cache_sizes = [1*1024, 2*1024, 4*1024, 8*1024, 16*1024, 32*1024, 64*1024, 128*1024]
     block_sizes = [16, 32, 64, 128, 256]
     associativities = [1, 2, 4, 8, 16]
 
@@ -51,6 +51,8 @@ def set_parameters():
     for c in cache_sizes:
         for b in block_sizes:
             for a in associativities:
+                if b*a > c:
+                    continue
                 full_cartesian.append([c, b, a])
 
     # Targeted sweeps (change one parameter at a time)
@@ -119,7 +121,7 @@ def main():
     # for config in generate_parameters(20):
         # parameters.append(calculate_parameters(config[0], config[1], config[2]))
     
-    for config in set_parameters()["baseline"]:
+    for config in set_parameters()["full_cartesian"]:
         parameters.append(calculate_parameters(config[0], config[1], config[2]))
 
     total_parameters = []
