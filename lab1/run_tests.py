@@ -39,7 +39,7 @@ def set_parameters():
     Use the desired list (baseline, full_cartesian, sweep_*).
     """
     # Useful discrete options (bytes)
-    cache_sizes = [1*1024, 2*1024, 4*1024, 8*1024, 16*1024, 32*1024, 64*1024, 128*1024]
+    cache_sizes = [1024, 2*1024, 4*1024, 8*1024, 16*1024, 32*1024]
     block_sizes = [16, 32, 64, 128, 256]
     associativities = [1, 2, 4, 8, 16]
 
@@ -159,7 +159,7 @@ def main():
             if not os.path.exists(i):
                 print(red + "ERROR -- input file (*.x) not found: " + i + normal)
                 continue
-
+    
             sim_out = run(i, param)
             # print(i)
             # print(sim_out)
