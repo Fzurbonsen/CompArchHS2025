@@ -16,6 +16,11 @@
 #include <stdlib.h>
 
 
+// select only one of the cache types:
+// #define LRU_CACHE
+// #define FIFO_CACHE
+#define RANDOM_CACHE
+
 // function to init data cache
 cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off) {
     cache_t* cache = (cache_t*)calloc(1, sizeof(cache_t));
@@ -41,12 +46,6 @@ void cache_destroy(cache_t* cache) {
 }
 
 
-/*
- * This file holds implementations for different replacement policies.
- * Depending on which version should be tested the required code can be commented
- * or uncommented. ALL THE VERSIONS USE THE SAME FUNCTION NAMES!
-*/
-
 
 /*********************************
  *                               *
@@ -54,72 +53,73 @@ void cache_destroy(cache_t* cache) {
  *                               *
  *********************************/
 
+#ifdef LRU_CACHE
 
-// // function to update the lru of the current set
-// int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* cache) {
+// function to update the lru of the current set
+int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* cache) {
 
-//     // iterate over all ways in the set and update their lru
-//     for (int i = 0; i < cache->n_ways; ++i) {
+    // iterate over all ways in the set and update their lru
+    for (int i = 0; i < cache->n_ways; ++i) {
 
-//         // if the lru is bigger then the current lru, i.e.it has been used more recently then we need to shift it
-//         if (set[i].valid && set[i].lru > lru)
-//             set[i].lru--;
-//     }
+        // if the lru is bigger then the current lru, i.e.it has been used more recently then we need to shift it
+        if (set[i].valid && set[i].lru > lru)
+            set[i].lru--;
+    }
 
-//     // return the top lru
-//     return cache->n_ways-1;
-// }
-
-
-// // function to calculate the number of cycles we need to stall for to simulate the memory access
-// int cache_stall(uint32_t in, cache_t* cache) {
-//     uint32_t tag = in >> cache->tag_shift; //  PC[31:13]
-//     uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off; // PC[12:5]
-
-//     uint32_t tag2 = in >> 11; //  PC[31:13]
-//     uint32_t set_index2 = (in >> 5) & 0x3F; // PC[12:5]
-
-//     cache_block_t* set = &cache->blocks[set_index*cache->n_ways]; // get the set from the cache
-
-//     // serach the set for a tag match
-//     for (int i = 0; i < cache->n_ways; ++i) {
-
-//         // check if we have a hit
-//         if (set[i].valid && set[i].tag == tag) {
-//             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-//             return 0; // we have a chache hit so we do not need to stall the pipeline
-//         }
-//     }
-
-//     // if we have a cache miss we add to the cache and stall for 50 cycles
-//     int victim = -1;
-//     int min_lru = cache->n_ways;
-
-//     // find either an invalid entry or the LRU block
-//     for (int i = 0; i < cache->n_ways; ++i) {
-
-//         // check for invalid entry
-//         if (!set[i].valid) {
-//             victim = i;
-//             break; // if we find an invalid entry we can break
-//         }
-
-//         // find the LRU block
-//         if (set[i].lru < min_lru) {
-//             min_lru = set[i].lru;
-//             victim = i;
-//         }
-//     }
-
-//     // insert the new block
-//     set[victim].tag = tag;
-//     set[victim].valid = 1;
-//     set[victim].lru = cache_update_lru(set, victim, 0, cache);
-
-//     return 50; // if it is a cache miss then we stall for 50 cycles
-// }
+    // return the top lru
+    return cache->n_ways-1;
+}
 
 
+// function to calculate the number of cycles we need to stall for to simulate the memory access
+int cache_stall(uint32_t in, cache_t* cache) {
+    uint32_t tag = in >> cache->tag_shift; //  PC[31:13]
+    uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off; // PC[12:5]
+
+    uint32_t tag2 = in >> 11; //  PC[31:13]
+    uint32_t set_index2 = (in >> 5) & 0x3F; // PC[12:5]
+
+    cache_block_t* set = &cache->blocks[set_index*cache->n_ways]; // get the set from the cache
+
+    // serach the set for a tag match
+    for (int i = 0; i < cache->n_ways; ++i) {
+
+        // check if we have a hit
+        if (set[i].valid && set[i].tag == tag) {
+            set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
+            return 0; // we have a chache hit so we do not need to stall the pipeline
+        }
+    }
+
+    // if we have a cache miss we add to the cache and stall for 50 cycles
+    int victim = -1;
+    int min_lru = cache->n_ways;
+
+    // find either an invalid entry or the LRU block
+    for (int i = 0; i < cache->n_ways; ++i) {
+
+        // check for invalid entry
+        if (!set[i].valid) {
+            victim = i;
+            break; // if we find an invalid entry we can break
+        }
+
+        // find the LRU block
+        if (set[i].lru < min_lru) {
+            min_lru = set[i].lru;
+            victim = i;
+        }
+    }
+
+    // insert the new block
+    set[victim].tag = tag;
+    set[victim].valid = 1;
+    set[victim].lru = cache_update_lru(set, victim, 0, cache);
+
+    return 50; // if it is a cache miss then we stall for 50 cycles
+}
+
+#endif // LRU_CACHE
 
 
 /*********************************
@@ -128,50 +128,53 @@ void cache_destroy(cache_t* cache) {
  *                               *
  *********************************/
 
+#ifdef FIFO_CACHE
 
-// // function to calculate the number of cycles we need to stall for to simulate the memory access
-// int cache_stall(uint32_t in, cache_t* cache) {
-//     uint32_t tag = in >> cache->tag_shift; //  PC[31:13]
-//     uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off; // PC[12:5]
+// function to calculate the number of cycles we need to stall for to simulate the memory access
+int cache_stall(uint32_t in, cache_t* cache) {
+    uint32_t tag = in >> cache->tag_shift; //  PC[31:13]
+    uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off; // PC[12:5]
 
-//     cache_block_t* set = &cache->blocks[set_index*cache->n_ways]; // get the set from the cache
+    cache_block_t* set = &cache->blocks[set_index*cache->n_ways]; // get the set from the cache
 
-//     // serach the set for a tag match
-//     for (int i = 0; i < cache->n_ways; ++i) {
+    // serach the set for a tag match
+    for (int i = 0; i < cache->n_ways; ++i) {
 
-//         // check if we have a hit
-//         if (set[i].valid && set[i].tag == tag) {
-//             return 0; // we have a chache hit so we do not need to stall the pipeline
-//         }
-//     }
+        // check if we have a hit
+        if (set[i].valid && set[i].tag == tag) {
+            return 0; // we have a chache hit so we do not need to stall the pipeline
+        }
+    }
 
-//     // if we have a cache miss we add to the cache and stall for 50 cycles
-//     int victim = -1;
-//     uint64_t oldest = UINT64_MAX;
+    // if we have a cache miss we add to the cache and stall for 50 cycles
+    int victim = -1;
+    uint64_t oldest = UINT64_MAX;
 
-//     // find either an invalid entry or the oldest entry
-//     for (int i = 0; i < cache->n_ways; ++i) {
+    // find either an invalid entry or the oldest entry
+    for (int i = 0; i < cache->n_ways; ++i) {
 
-//         // check for invalid entry
-//         if (!set[i].valid) {
-//             victim = i;
-//             break; // if we find an invalid entry we can break
-//         }
+        // check for invalid entry
+        if (!set[i].valid) {
+            victim = i;
+            break; // if we find an invalid entry we can break
+        }
 
-//         // find the oldest entry
-//         if (set[i].fifo_counter < oldest) {
-//             oldest = set[i].fifo_counter;
-//             victim = i;
-//         }
-//     }
+        // find the oldest entry
+        if (set[i].fifo_counter < oldest) {
+            oldest = set[i].fifo_counter;
+            victim = i;
+        }
+    }
 
-//     // insert the new block
-//     set[victim].tag = tag;
-//     set[victim].valid = 1;
-//     set[victim].fifo_counter = cache->fifo_head[set_index]++;
+    // insert the new block
+    set[victim].tag = tag;
+    set[victim].valid = 1;
+    set[victim].fifo_counter = cache->fifo_head[set_index]++;
 
-//     return 50; // if it is a cache miss then we stall for 50 cycles
-// }
+    return 50; // if it is a cache miss then we stall for 50 cycles
+}
+
+#endif // FIFO_CACHE
 
 
 
@@ -181,6 +184,7 @@ void cache_destroy(cache_t* cache) {
  *                               *
  *********************************/
 
+#ifdef RANDOM_CACHE
 
 // function to calculate the number of cycles we need to stall for to simulate the memory access
 int cache_stall(uint32_t in, cache_t* cache) {
@@ -223,3 +227,17 @@ int cache_stall(uint32_t in, cache_t* cache) {
 
     return 50; // if it is a cache miss then we stall for 50 cycles
 }
+
+#endif // RANDOM_CACHE
+
+
+
+/*********************************
+ *                               *
+ *          DRRIP CACHE          *
+ *                               *
+ *********************************/
+
+#ifdef DRRIP_CACHE
+
+#endif // DRRIP_CACHE

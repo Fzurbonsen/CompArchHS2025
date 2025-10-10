@@ -121,7 +121,7 @@ def main():
     # for config in generate_parameters(20):
         # parameters.append(calculate_parameters(config[0], config[1], config[2]))
     
-    for config in set_parameters()["sweep_associativity"]:
+    for config in set_parameters()["sweep_cache_size"]:
         parameters.append(calculate_parameters(config[0], config[1], config[2]))
 
     total_parameters = []
