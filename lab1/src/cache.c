@@ -18,8 +18,8 @@
 
 // select only one of the cache types:
 // #define LRU_CACHE
-// #define FIFO_CACHE
-#define RANDOM_CACHE
+#define FIFO_CACHE
+// #define RANDOM_CACHE
 
 // function to init data cache
 cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off) {

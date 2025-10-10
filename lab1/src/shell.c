@@ -295,7 +295,7 @@ void get_command() {
   switch(buffer[0]) {
   case 'G':
   case 'g':
-    my_tests(); // modifed: go(); -> my_tests();
+    go(); // modifed: go(); -> my_tests();
     break;
 
   case 'M':
