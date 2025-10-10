@@ -39,9 +39,9 @@ def set_parameters():
     Use the desired list (baseline, full_cartesian, sweep_*).
     """
     # Useful discrete options (bytes)
-    cache_sizes = [1024, 2*1024, 4*1024, 8*1024, 16*1024, 32*1024]
-    block_sizes = [16, 32, 64, 128, 256]
-    associativities = [1, 2, 4, 8, 16]
+    cache_sizes = [1*1024, 2*1024, 4*1024, 8*1024, 16*1024, 32*1024, 64*1024, 128*1024, 256*1024, 512*1024, 1024*1024]
+    block_sizes = [4, 8, 16, 32, 64, 128, 256]
+    associativities = [2, 4, 8, 16, 32, 64]
 
     # Baseline (common L1-like)
     baseline = [[32*1024, 64, 4]]  # 32KB, 64B block, 4-way
@@ -121,7 +121,7 @@ def main():
     # for config in generate_parameters(20):
         # parameters.append(calculate_parameters(config[0], config[1], config[2]))
     
-    for config in set_parameters()["full_cartesian"]:
+    for config in set_parameters()["sweep_cache_size"]:
         parameters.append(calculate_parameters(config[0], config[1], config[2]))
 
     total_parameters = []
