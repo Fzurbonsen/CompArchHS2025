@@ -21,6 +21,7 @@ typedef struct {
     uint32_t tag;
     int valid;
     int lru;
+    int fifo_counter;
 } cache_block_t;
 
 typedef struct {
@@ -30,6 +31,11 @@ typedef struct {
     int tag_shift;
     int set_index_shift;
     uint32_t set_index_off;
+
+    // for fifo implementation
+    uint64_t* fifo_head;
+
+
 } cache_t;
 
 /*

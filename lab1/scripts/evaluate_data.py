@@ -234,8 +234,8 @@ def plot_heatmap_ipc(best_instances, param1, param2):
     plt.yticks(ticks=np.arange(len(dc_sizes)), labels=dc_sizes)
     # plt.xlabel(param1)
     # plt.ylabel(param2)
-    plt.xlabel("instruction cache block size [bytes]")
-    plt.ylabel("data cache block size [bytes]")
+    plt.xlabel("instruction cache associativity")
+    plt.ylabel("data cache associativity")
     plt.colorbar(im, label="IPC")
 
     plt.tight_layout()

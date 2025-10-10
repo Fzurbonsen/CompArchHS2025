@@ -5,8 +5,12 @@ import os
 
 # List of your CSV files
 files = [
-    "../data/lru/cache_size_sweep/strided_access.csv",
-    "../data/lru/cache_size_sweep/primes.csv"
+    "../data/fifo/cache_size_sweep/dcache_filler.csv",
+    "../data/fifo/cache_size_sweep/icache_filler.csv",
+    "../data/fifo/cache_size_sweep/random1.csv",
+    "../data/fifo/cache_size_sweep/sequential_access.csv",
+    "../data/fifo/cache_size_sweep/strided_access.csv",
+    "../data/fifo/cache_size_sweep/primes.csv"
 ]
 
 # Initialize an empty DataFrame to hold all data
