@@ -11,6 +11,7 @@
 
 #include "shell.h"
 #include "cache.h"
+#include "memory_controller.h"
 
 /* Pipeline ops (instances of this structure) are high-level representations of
  * the instructions that actually flow through the pipeline. This struct does
@@ -93,6 +94,9 @@ typedef struct Pipe_State {
     cache_t* icache;
     cache_t* dcache;
     cache_t* l2_cache;
+
+    // memory controller:
+    mem_con_t* mem_con;
 
 } Pipe_State;
 

@@ -1,7 +1,7 @@
 SRC = $(wildcard src/*.c)
 INPUT ?= $(wildcard inputs/*/*.x)
 
-.PHONY: all verify clean
+.PHONY: all verify clean tests
 
 all: sim
 
@@ -13,6 +13,9 @@ basesim: $(SRC)
 
 run: sim
 	@python3 run.py $(INPUT)
+
+tests: sim
+	./sim inputs/medium/additest.x
 
 clean:
 	rm -rf *.o *~ sim

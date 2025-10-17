@@ -35,9 +35,14 @@ void pipe_init()
 {
     memset(&pipe, 0, sizeof(Pipe_State));
     pipe.PC = 0x00400000;
+
+    // initialize caches
     pipe.icache = cache_init(64, 4, 11, 5, 0x3F);
     pipe.dcache = cache_init(256, 8, 13, 5, 0xFF);
     pipe.l2_cache = cache_init(512, 16, 14, 5, 0x1FF);
+
+    // initialize the memory controller
+    pipe.mem_con = mem_con_init(8, 64*1024, 8*1024, 32);
 }
 
 void cache_update_all() {
@@ -76,6 +81,7 @@ void pipe_cycle()
         if (pipe.branch_flush >= 2) {
             if (pipe.decode_op) free(pipe.decode_op);
             pipe.decode_op = NULL;
+            // cache_flush(pipe.icache);
         }
 
         if (pipe.branch_flush >= 3) {
@@ -86,6 +92,7 @@ void pipe_cycle()
         if (pipe.branch_flush >= 4) {
             if (pipe.mem_op) free(pipe.mem_op);
             pipe.mem_op = NULL;
+            // cache_flush(pipe.dcache);
         }
 
         if (pipe.branch_flush >= 5) {
@@ -169,7 +176,7 @@ void pipe_stage_mem()
 
         // check if the cache has valid data
         if (!(cache_valid(pipe.dcache))) {
-            cache_access(pipe.dcache, pipe.l2_cache, op->mem_addr);
+            cache_access(pipe.dcache, pipe.l2_cache, pipe.mem_con, op->mem_addr);
             // check if this acces caused a stall
             if (cache_is_stall(pipe.dcache))
                 return;
@@ -712,7 +719,7 @@ void pipe_stage_fetch()
     // check if the cache has valid data
     if (!cache_valid(pipe.icache)) {
         // if the cache has no valid data then we access the cache to read the next instruction
-        cache_access(pipe.icache, pipe.l2_cache, pipe.PC);
+        cache_access(pipe.icache, pipe.l2_cache, pipe.mem_con, pipe.PC);
         // check if the cache has started a stall
         if (cache_is_stall(pipe.icache))
             return;

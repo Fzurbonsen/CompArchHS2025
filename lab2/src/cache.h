@@ -15,6 +15,7 @@
 #define _CACHE_H_
 
 #include <stdint.h>
+#include "memory_controller.h"
 
 // chache block struct: this struct represents a single cache block and stores the relevant metadata
 typedef struct {
@@ -40,12 +41,6 @@ typedef struct {
 
 } cache_t;
 
-// MSHR struct for l2 cache
-typedef struct {
-    int16_t done;
-    int16_t valid;
-    uint32_t address;
-} mshr_t;
 
 /*
  * PRE:
@@ -69,9 +64,10 @@ void cache_ready(cache_t* cache);
 // function to update the cache each cycle
 void l1_cache_update(cache_t* cache);
 void l2_cache_update(cache_t* cache);
+void cache_flush(cache_t* cache);
 
 
 // function to handle a memory request
-void cache_access(cache_t* cache, cache_t* l2_cache, uint32_t in);
+void cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_con, uint32_t in);
 
 #endif // _CACHE_H_

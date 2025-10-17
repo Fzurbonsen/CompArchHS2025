@@ -73,6 +73,26 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
 }
 
 
+// function to unstall L1 cache and set the valid in the handshake
+static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
+    cache->stall_counter = 0;
+    cache->is_stall = 0;
+    cache->valid = valid;
+}
+
+
+// function to start a stall in the L1 cache
+static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall) {
+    if (is_stall > 0 && cycles > 0) {
+        cache->is_stall = 1;
+        cache->stall_counter = cycles;
+        return;
+    }
+    l1_cache_end_stall(cache, 1);
+    return;
+}
+
+
 
 
 /*********************************
@@ -82,55 +102,52 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
  *********************************/
 
 
-#define L2_CACHE_NUM_MSHR 16
 #define MEM_ACCESS_TIME 50
 #define L2_CACHE_HIT_STALL 15
 #define L2_CACHE_MISS_STALL 5 + MEM_ACCESS_TIME + 5
 #define L2_CACHE_BLOCK_OFFSET 5 // log2(32) = 5 as the cache blocks have size 32 bytes
 
 
-// MSH-register table for the L2 cache
-static mshr_t l2_mshr[L2_CACHE_NUM_MSHR] = {0}; // initialize at zero
-
-
 // function to find a free MSHR or return -1 if there is none
-static int find_free_mshr() {
+static int find_free_mshr(mshr_t* mshr) {
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) { // iterate over all MSHRs
-        if (l2_mshr[i].valid == 0) return i; // if a free MSHR is found we return
+        if (mshr[i].valid == 0) return i; // if a free MSHR is found we return
     }
     return -1; // if no free MSHR is found we return -1
 }
 
 
 // function to allocate an MSH-register and return its index in the MSHR table or return -1 if no free register is found
-static int alloc_mshr(uint32_t address) {
-    int32_t idx = find_free_mshr();
+static int alloc_mshr(mshr_t* mshr, uint32_t address) {
+    int32_t idx = find_free_mshr(mshr);
     if (idx >= 0) {
-        l2_mshr[idx].done = 0; // request in process but not yet done
-        l2_mshr[idx].valid = 1; // MSHR is in use
-        l2_mshr[idx].address = address;
+        mshr[idx].done = 0; // request in process but not yet done
+        mshr[idx].valid = 1; // MSHR is in use
+        mshr[idx].address = address;
     }
     return idx;
 }
 
 
 // function to free a MSH-register
-static void free_mshr(uint32_t idx) {
+static void clear_mshr(mshr_t* mshr, uint32_t idx) {
     if (idx >= 0 && idx < L2_CACHE_NUM_MSHR) {
-        l2_mshr[idx].done = 0;
-        l2_mshr[idx].valid = 0; // MSHR is not in use and can be reused
-        l2_mshr[idx].address = 0;
+        mshr[idx].done = 0;
+        mshr[idx].valid = 0; // MSHR is not in use and can be reused
+        mshr[idx].address = 0;
         return;
     }
     fprintf(stderr, "[cache]error: invalid index!\n");
     fprintf(stderr, "\tIndex: %i is an invalid index.\n", idx);
-    fprintf(stderr, "\tError occured in function cache.c/static void free_mshr(uint32_t idx)\n");
+    fprintf(stderr, "\tError occured in function cache.c/static void clear_mshr(uint32_t idx)\n");
     exit(1);
 }
 
 
 // function to calculate the stall time upon an access to the L2 cache
-static int l2_cache_stall(uint32_t in, cache_t* cache) {
+static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_con_t* mem_con) {
+    mshr_t* l2_mshr = &mem_con->l2_mshr[0];
+
     uint32_t tag = in >> cache->tag_shift;
     uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off;
 
@@ -142,13 +159,14 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-            return L2_CACHE_HIT_STALL; // we have a chache hit so we do not need to stall the pipeline
+            l1_cache_set_stall(l1_cache, L2_CACHE_HIT_STALL, L2_CACHE_HIT_STALL);
+            return;
         }
     }
 
     // if we have a cache miss we need to allocate a MSHR
     uint32_t block_address = in >> L2_CACHE_BLOCK_OFFSET; // we look at the least significant bits od the address up to L2_CACHE_BLOCK_OFFSET
-    int32_t mshr_idx = alloc_mshr(block_address);
+    int32_t mshr_idx = alloc_mshr(l2_mshr, block_address);
     if (mshr_idx < 0) {
         // handle if we do not find a free MSHR this should not happen with our current setup
         fprintf(stderr, "[cache]error: no free MSHR\n");
@@ -189,11 +207,13 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
     set[victim].valid = 1;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
+    mem_con_access(mem_con, mshr_idx);
+
     // update l2_mshr: this is somewhat redundant as we do not directly keep track of these metrics and only care about the stalls
     l2_mshr[mshr_idx].done = 1;
-    free_mshr(mshr_idx);
+    clear_mshr(l2_mshr, mshr_idx);
 
-    return L2_CACHE_MISS_STALL;
+    return;
 }
 
 
@@ -210,29 +230,8 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
 #define L1_CHACHE_MISS_STALL 50
 
 
-// function to unstall L1 cache and set the valid in the handshake
-static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
-    cache->stall_counter = 0;
-    cache->is_stall = 0;
-    cache->valid = valid;
-}
-
-
-// function to start a stall in the L1 cache
-static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall) {
-    if (is_stall > 0 && cycles > 0) {
-        cache->is_stall = 1;
-        cache->stall_counter = cycles;
-        return;
-    }
-    l1_cache_end_stall(cache, 1);
-    return;
-}
-
-
-
 // function to calculate the number of cycles we need to stall for to simulate the memory access
-static void l1_cache_access(uint32_t in, cache_t* cache, cache_t* l2_cache) {
+static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_con, uint32_t in) {
     uint32_t tag = in >> cache->tag_shift;
     uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off;
 
@@ -274,10 +273,12 @@ static void l1_cache_access(uint32_t in, cache_t* cache, cache_t* l2_cache) {
     set[victim].valid = 1;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
+    l2_cache_access(in, l2_cache, cache, mem_con);
     l1_cache_set_stall(cache, L1_CHACHE_MISS_STALL, L1_CHACHE_MISS_STALL);
     return;
 
-    // the cache is now stalled untill the memory is provided by the L2 cache
+    // we offload the memory access to the L2 cache
+    l2_cache_access(in, l2_cache, cache, mem_con);
 
     // return l2_cache_stall(in, l2_cache); // if it is a cache miss then we stall for 50 cycles
 }
@@ -313,6 +314,19 @@ void l2_cache_update(cache_t* cache) {
 }
 
 
+// function to handle pipeline flushes
+void cache_flush(cache_t* cache) {
+
+    // if the cache is currently fetching something from memory then we cancle that action
+    if (cache->is_stall) {
+        // ToDo:
+    }
+    cache->is_stall = 0;
+    cache->valid = 0;
+    cache->stall_counter = 0;
+}
+
+
 
 
 /*********************************
@@ -339,8 +353,8 @@ void cache_ready(cache_t* cache) {
 
 
 // function to handle a memory request
-void cache_access(cache_t* cache, cache_t* l2_cache, uint32_t in) {
-    l1_cache_access(in, cache, l2_cache);
+void cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_con, uint32_t in) {
+    l1_cache_access(cache, l2_cache, mem_con, in);
 
     // if there is a cache stall caused by this access then we stall the cache is invalidated
     if (cache->stall_counter > 0) {
