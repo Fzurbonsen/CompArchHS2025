@@ -129,7 +129,7 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
 
     // if we have a cache miss we need to allocate a MSHR
     uint32_t block_address = in >> L2_CACHE_BLOCK_OFFSET; // we look at the least significant bits od the address up to L2_CACHE_BLOCK_OFFSET
-    uint32_t mshr_idx = alloc_mshr(block_address);
+    int32_t mshr_idx = alloc_mshr(block_address);
     if (mshr_idx < 0) {
         // handle if we do not find a free MSHR this should not happen with our current setup
         fprintf(stderr, "[cache]error: no free MSHR\n");
@@ -145,8 +145,36 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
         exit(1);
     }
 
+    // find a victim or the LRU entry
+    int32_t victim = -1;
+    int32_t min_lru = cache->n_ways;
+    
+    // iterate over all entries in the set
+    for (int i = 0; i < cache->n_ways; ++i) {
 
-    return 50;
+        // check for invalid entry
+        if (!set[i].valid) {
+            victim = i;
+            break; // if we find an invalid entry we can break
+        }
+
+        // find the LRU block
+        if (set[i].lru < min_lru) {
+            min_lru = set[i].lru;
+            victim = i;
+        }
+    }
+
+    // insert the new block
+    set[victim].tag = tag;
+    set[victim].valid = 1;
+    set[victim].lru = cache_update_lru(set, victim, 0, cache);
+
+    // update l2_mshr: this is somewhat redundant as we do not directly keep track of these metrics and only care about the stalls
+    l2_mshr[mshr_idx].done = 1;
+    free_mshr(mshr_idx);
+
+    return L2_CACHE_MISS_STALL;
 }
 
 
