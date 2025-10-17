@@ -29,6 +29,7 @@ typedef struct {
     cache_block_t* blocks;
     uint32_t stall_counter; // counter to track the memory access
     int8_t valid; // indicator wether the cache output is valid
+    int8_t is_stall; // indicator whether the cache is stalled
 
     // cache config
     int n_sets;
@@ -56,16 +57,6 @@ cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, 
 
 void cache_destroy(cache_t* cache);
 
-/*
- * PRE:
- *      addr:       uint32_t that holds the address of the memory access.
- * POST:
- *      return:     int that holds the number of cycles we need to stall the memory stage to
- *                  simulate the loading of the data.
-*/
-int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache);
-
-
 
 // function to return for a cache if the cache is currently causing a stall
 int cache_is_stall(cache_t* cache);
@@ -76,7 +67,8 @@ void cache_ready(cache_t* cache);
 
 
 // function to update the cache each cycle
-void cache_update(cache_t* cache);
+void l1_cache_update(cache_t* cache);
+void l2_cache_update(cache_t* cache);
 
 
 // function to handle a memory request

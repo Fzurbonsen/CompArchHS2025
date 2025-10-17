@@ -18,6 +18,14 @@
 // #define DEBUG
 
 
+
+
+/*********************************
+ *                               *
+ *       Struct Management       *
+ *                               *
+ *********************************/
+
 // function to init data cache
 cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off) {
     cache_t* cache = (cache_t*)calloc(1, sizeof(cache_t));
@@ -40,6 +48,15 @@ void cache_destroy(cache_t* cache) {
 }
 
 
+
+
+/*********************************
+ *                               *
+ *       Helper Functions        *
+ *                               *
+ *********************************/
+
+
 // function to update the lru of the current set
 static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* cache) {
 
@@ -57,9 +74,10 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
 
 
 
+
 /*********************************
  *                               *
- *          L2 Cache             *
+ *           L2 Cache            *
  *                               *
  *********************************/
 
@@ -180,19 +198,41 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
 
 
 
+
 /*********************************
  *                               *
- *          L1 Caches            *
+ *           L1 Cache            *
  *                               *
  *********************************/
 
 
 #define L1_CACHE_HIT_STALL 0
-#define L1_CHACH_MISS_STALL 50
+#define L1_CHACHE_MISS_STALL 50
+
+
+// function to unstall L1 cache and set the valid in the handshake
+static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
+    cache->stall_counter = 0;
+    cache->is_stall = 0;
+    cache->valid = valid;
+}
+
+
+// function to start a stall in the L1 cache
+static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall) {
+    if (is_stall > 0 && cycles > 0) {
+        cache->is_stall = 1;
+        cache->stall_counter = cycles;
+        return;
+    }
+    l1_cache_end_stall(cache, 1);
+    return;
+}
+
 
 
 // function to calculate the number of cycles we need to stall for to simulate the memory access
-int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache) {
+static void l1_cache_access(uint32_t in, cache_t* cache, cache_t* l2_cache) {
     uint32_t tag = in >> cache->tag_shift;
     uint32_t set_index = (in >> cache->set_index_shift) & cache->set_index_off;
 
@@ -204,7 +244,8 @@ int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache) {
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-            return L1_CACHE_HIT_STALL; // we have a chache hit so we do not need to stall the pipeline
+            l1_cache_set_stall(cache, L1_CACHE_HIT_STALL, L1_CACHE_HIT_STALL);
+            return;
         }
     }
 
@@ -233,7 +274,10 @@ int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache) {
     set[victim].valid = 1;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
-    return 50;
+    l1_cache_set_stall(cache, L1_CHACHE_MISS_STALL, L1_CHACHE_MISS_STALL);
+    return;
+
+    // the cache is now stalled untill the memory is provided by the L2 cache
 
     // return l2_cache_stall(in, l2_cache); // if it is a cache miss then we stall for 50 cycles
 }
@@ -241,9 +285,46 @@ int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache) {
 
 
 
+/*********************************
+ *                               *
+ *      Pipeline Interface       *
+ *                               *
+ *********************************/
+
+
+// function to update an l1 cache
+void l1_cache_update(cache_t* cache) {
+
+    // decrease the stall counter
+    if (cache->stall_counter > 0) {
+        cache->stall_counter--;
+        cache->valid = 0;
+        // if the cache reaches zero in this cycle this means that the data at its output is now valid
+        if (cache->stall_counter == 0) {
+            l1_cache_end_stall(cache, 1);
+        }
+    }
+}
+
+
+// function to update an l2 cache
+void l2_cache_update(cache_t* cache) {
+
+}
+
+
+
+
+/*********************************
+ *                               *
+ *        Stage Interface        *
+ *                               *
+ *********************************/
+
+
 // function to return for a cache if the cache is currently causing a stall
 int cache_is_stall(cache_t* cache) {
-    return cache->stall_counter > 0;
+    return cache->is_stall;
 }
 
 // function to return the valid state of the cache
@@ -257,23 +338,9 @@ void cache_ready(cache_t* cache) {
 }
 
 
-// function to update the cache each cycle
-void cache_update(cache_t* cache) {
-    // decrease the stall counter
-    if (cache->stall_counter > 0) {
-        cache->stall_counter--;
-        cache->valid = 0;
-        // if the cache reaches zero in this cycle this means that the data at its output is now valid
-        if (cache->stall_counter == 0) {
-            cache->valid = 1;
-        }
-    }
-}
-
-
 // function to handle a memory request
 void cache_access(cache_t* cache, cache_t* l2_cache, uint32_t in) {
-    cache->stall_counter = cache_stall(in, cache, l2_cache); // update the stall counter
+    l1_cache_access(in, cache, l2_cache);
 
     // if there is a cache stall caused by this access then we stall the cache is invalidated
     if (cache->stall_counter > 0) {

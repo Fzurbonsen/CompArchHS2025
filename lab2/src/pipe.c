@@ -40,6 +40,12 @@ void pipe_init()
     pipe.l2_cache = cache_init(512, 16, 14, 5, 0x1FF);
 }
 
+void cache_update_all() {
+    l2_cache_update(pipe.l2_cache);
+    l1_cache_update(pipe.dcache);
+    l1_cache_update(pipe.icache);
+}
+
 void pipe_cycle()
 {
 #ifdef DEBUG
@@ -51,8 +57,7 @@ void pipe_cycle()
     printf("\n");
 #endif // DEBUG
 
-    cache_update(pipe.icache);
-    cache_update(pipe.dcache);
+    cache_update_all();
 
     pipe_stage_wb();
     pipe_stage_mem();
