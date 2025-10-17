@@ -25,12 +25,18 @@ typedef struct {
 
 // cache struct
 typedef struct {
+    // cache metadata
     cache_block_t* blocks;
+    uint32_t stall_counter; // counter to track the memory access
+    int8_t valid; // indicator wether the cache output is valid
+
+    // cache config
     int n_sets;
     int n_ways;
     int tag_shift;
     int set_index_shift;
     uint32_t set_index_off;
+
 } cache_t;
 
 // MSHR struct for l2 cache
@@ -58,5 +64,22 @@ void cache_destroy(cache_t* cache);
  *                  simulate the loading of the data.
 */
 int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache);
+
+
+
+// function to return for a cache if the cache is currently causing a stall
+int cache_is_stall(cache_t* cache);
+
+// function to return the valid state of the cache
+int cache_valid(cache_t* cache);
+void cache_ready(cache_t* cache);
+
+
+// function to update the cache each cycle
+void cache_update(cache_t* cache);
+
+
+// function to handle a memory request
+void cache_access(cache_t* cache, cache_t* l2_cache, uint32_t in);
 
 #endif // _CACHE_H_

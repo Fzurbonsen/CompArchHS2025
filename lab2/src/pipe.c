@@ -51,6 +51,9 @@ void pipe_cycle()
     printf("\n");
 #endif // DEBUG
 
+    cache_update(pipe.icache);
+    cache_update(pipe.dcache);
+
     pipe_stage_wb();
     pipe_stage_mem();
     pipe_stage_execute();
@@ -131,7 +134,7 @@ void pipe_stage_wb()
             RUN_BIT = 0;
 
             // the fetch stage might be stalled an not do pc += 4 we need to account for that
-            if (pipe.instruction_cache_stall > 1)
+            if (cache_is_stall(pipe.icache))
                 pipe.PC += 4;
         }
     }
@@ -694,26 +697,27 @@ void pipe_stage_decode()
 
 void pipe_stage_fetch()
 {
-    // if an instruction cache stall is in process decrease the count untill it is ready
-    if (pipe.instruction_cache_stall > 0)
-        pipe.instruction_cache_stall--;
 
     /* if pipeline is stalled (our output slot is not empty), return */
     if (pipe.decode_op != NULL)
         return;
 
-    if (pipe.instruction_cache_stall > 0)
+
+    // check if the cache is in a stall
+    if (cache_is_stall(pipe.icache))
         return;
 
-    if (!pipe.instruction_stall) {
-        // pipe.instruction_cache_stall = instruction_cache_stall_mem_read(pipe.PC);
-        pipe.instruction_cache_stall = cache_stall(pipe.PC, pipe.icache, pipe.l2_cache);
-        pipe.instruction_stall = 1;
-        if (pipe.instruction_cache_stall > 0)
+    // check if the cache has valid data
+    if (!cache_valid(pipe.icache)) {
+        // if the cache has no valid data then we access the cache to read the next instruction
+        cache_access(pipe.icache, pipe.l2_cache, pipe.PC);
+        // check if the cache has started a stall
+        if (cache_is_stall(pipe.icache))
             return;
     }
 
-    pipe.instruction_stall = 0;
+    // complete the handshake with the cache
+    cache_ready(pipe.icache);
 
     /* Allocate an op and send it down the pipeline. */
     Pipe_Op *op = malloc(sizeof(Pipe_Op));

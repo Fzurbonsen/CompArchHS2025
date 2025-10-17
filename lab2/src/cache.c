@@ -27,6 +27,8 @@ cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, 
     cache->tag_shift = tag_shift;
     cache->set_index_shift = set_index_shift;
     cache->set_index_off = set_index_off;
+    cache->stall_counter = 0;
+    cache->valid = 0;
     return cache;
 }
 
@@ -60,7 +62,6 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
  *          L2 Cache             *
  *                               *
  *********************************/
-
 
 
 #define L2_CACHE_NUM_MSHR 16
@@ -187,6 +188,7 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
 
 
 #define L1_CACHE_HIT_STALL 0
+#define L1_CHACH_MISS_STALL 50
 
 
 // function to calculate the number of cycles we need to stall for to simulate the memory access
@@ -231,5 +233,55 @@ int cache_stall(uint32_t in, cache_t* cache, cache_t* l2_cache) {
     set[victim].valid = 1;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
-    return l2_cache_stall(in, l2_cache); // if it is a cache miss then we stall for 50 cycles
+    return 50;
+
+    // return l2_cache_stall(in, l2_cache); // if it is a cache miss then we stall for 50 cycles
+}
+
+
+
+
+// function to return for a cache if the cache is currently causing a stall
+int cache_is_stall(cache_t* cache) {
+    return cache->stall_counter > 0;
+}
+
+// function to return the valid state of the cache
+int cache_valid(cache_t* cache) {
+    return cache->valid;
+}
+
+// function to complete the handshake with the stall
+void cache_ready(cache_t* cache) {
+    cache->valid = 0;
+}
+
+
+// function to update the cache each cycle
+void cache_update(cache_t* cache) {
+    // decrease the stall counter
+    if (cache->stall_counter > 0) {
+        cache->stall_counter--;
+        cache->valid = 0;
+        // if the cache reaches zero in this cycle this means that the data at its output is now valid
+        if (cache->stall_counter == 0) {
+            cache->valid = 1;
+        }
+    }
+}
+
+
+// function to handle a memory request
+void cache_access(cache_t* cache, cache_t* l2_cache, uint32_t in) {
+    cache->stall_counter = cache_stall(in, cache, l2_cache); // update the stall counter
+
+    // if there is a cache stall caused by this access then we stall the cache is invalidated
+    if (cache->stall_counter > 0) {
+        cache->valid = 0;
+    }
+
+    // if no stall is caused then the data is valid
+    if (cache->stall_counter == 0) {
+        cache->valid = 1;
+    }
 }
