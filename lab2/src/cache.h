@@ -27,6 +27,7 @@ typedef struct {
 // cache struct
 typedef struct {
     // cache metadata
+    cache_type_e type;
     cache_block_t* blocks;
     uint32_t stall_counter; // counter to track the memory access
     int8_t valid; // indicator wether the cache output is valid
@@ -48,7 +49,7 @@ typedef struct {
  * POST:
  *      return:     Initialized the data cache with 0.
 */
-cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off);
+cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off, cache_type_e type);
 
 void cache_destroy(cache_t* cache);
 
@@ -63,7 +64,7 @@ void cache_ready(cache_t* cache);
 
 // function to update the cache each cycle
 void l1_cache_update(cache_t* cache);
-void l2_cache_update(cache_t* cache);
+void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_t* dcache);
 void cache_flush(cache_t* cache);
 
 

@@ -27,7 +27,7 @@
  *********************************/
 
 // function to init data cache
-cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off) {
+cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, uint32_t set_index_off, cache_type_e type) {
     cache_t* cache = (cache_t*)calloc(1, sizeof(cache_t));
     cache->blocks = (cache_block_t*)calloc(1, n_sets*n_ways*sizeof(cache_block_t));
     cache->n_sets = n_sets;
@@ -35,6 +35,7 @@ cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, 
     cache->tag_shift = tag_shift;
     cache->set_index_shift = set_index_shift;
     cache->set_index_off = set_index_off;
+    cache->type = type;
     cache->stall_counter = 0;
     cache->valid = 0;
     return cache;
@@ -85,6 +86,7 @@ static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
 static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall) {
     if (is_stall > 0 && cycles > 0) {
         cache->is_stall = 1;
+        cache->valid = 0;
         cache->stall_counter = cycles;
         return;
     }
@@ -118,29 +120,27 @@ static int find_free_mshr(mshr_t* mshr) {
 
 
 // function to allocate an MSH-register and return its index in the MSHR table or return -1 if no free register is found
-static int alloc_mshr(mshr_t* mshr, uint32_t address) {
+static int alloc_mshr(mshr_t* mshr, uint32_t address, uint64_t cycle, cache_type_e type) {
     int32_t idx = find_free_mshr(mshr);
     if (idx >= 0) {
         mshr[idx].done = 0; // request in process but not yet done
         mshr[idx].valid = 1; // MSHR is in use
+        mshr[idx].cycle = cycle;
         mshr[idx].address = address;
+        mshr[idx].type = type;
+        mshr[idx].idx = idx;
     }
     return idx;
 }
 
 
 // function to free a MSH-register
-static void clear_mshr(mshr_t* mshr, uint32_t idx) {
-    if (idx >= 0 && idx < L2_CACHE_NUM_MSHR) {
-        mshr[idx].done = 0;
-        mshr[idx].valid = 0; // MSHR is not in use and can be reused
-        mshr[idx].address = 0;
-        return;
-    }
-    fprintf(stderr, "[cache]error: invalid index!\n");
-    fprintf(stderr, "\tIndex: %i is an invalid index.\n", idx);
-    fprintf(stderr, "\tError occured in function cache.c/static void clear_mshr(uint32_t idx)\n");
-    exit(1);
+static void clear_mshr(mshr_t* mshr) {
+    mshr->done = 0;
+    mshr->valid = 0; // MSHR is not in use and can be reused
+    mshr->address = 0;
+    mshr->type = UNDEF;
+    return;
 }
 
 
@@ -166,7 +166,7 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
 
     // if we have a cache miss we need to allocate a MSHR
     uint32_t block_address = in >> L2_CACHE_BLOCK_OFFSET; // we look at the least significant bits od the address up to L2_CACHE_BLOCK_OFFSET
-    int32_t mshr_idx = alloc_mshr(l2_mshr, block_address);
+    int32_t mshr_idx = alloc_mshr(l2_mshr, block_address, mem_con->cycle, l1_cache->type);
     if (mshr_idx < 0) {
         // handle if we do not find a free MSHR this should not happen with our current setup
         fprintf(stderr, "[cache]error: no free MSHR\n");
@@ -209,9 +209,9 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
 
     mem_con_access(mem_con, mshr_idx);
 
-    // update l2_mshr: this is somewhat redundant as we do not directly keep track of these metrics and only care about the stalls
-    l2_mshr[mshr_idx].done = 1;
-    clear_mshr(l2_mshr, mshr_idx);
+    // // update l2_mshr: this is somewhat redundant as we do not directly keep track of these metrics and only care about the stalls
+    // l2_mshr[mshr_idx].done = 1;
+    // clear_mshr(l2_mshr, mshr_idx);
 
     return;
 }
@@ -296,21 +296,41 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 // function to update an l1 cache
 void l1_cache_update(cache_t* cache) {
 
-    // decrease the stall counter
-    if (cache->stall_counter > 0) {
-        cache->stall_counter--;
-        cache->valid = 0;
-        // if the cache reaches zero in this cycle this means that the data at its output is now valid
-        if (cache->stall_counter == 0) {
-            l1_cache_end_stall(cache, 1);
-        }
-    }
+    // // decrease the stall counter
+    // if (cache->stall_counter > 0) {
+    //     cache->stall_counter--;
+    //     cache->valid = 0;
+    //     // if the cache reaches zero in this cycle this means that the data at its output is now valid
+    //     if (cache->stall_counter == 0) {
+    //         l1_cache_end_stall(cache, 1);
+    //     }
+    // }
 }
 
 
 // function to update an l2 cache
-void l2_cache_update(cache_t* cache) {
+void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_t* dcache) {
 
+    // print l1 cache stall states
+    fprintf(stderr, "");
+
+    // check the MSHRs
+    for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
+        mshr_t* mshr = &mem_con->l2_mshr[i];
+
+        // if we find a ready mshr then we process it
+        if (mshr->done) {
+            // check the origin
+            if (mshr->type == ICACHE) {
+                l1_cache_end_stall(icache, 1);
+            }
+            if (mshr->type == DCACHE) {
+                l1_cache_end_stall(dcache, 1);
+            }
+
+            clear_mshr(mshr);
+        }
+    }
 }
 
 

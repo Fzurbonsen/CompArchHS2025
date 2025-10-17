@@ -90,6 +90,9 @@ typedef struct Pipe_State {
     /* multiplier stall info */
     int multiplier_stall; /* number of remaining cycles until HI/LO are ready */
 
+    // cycle counter
+    uint64_t cycle_counter;
+
     // caches:
     cache_t* icache;
     cache_t* dcache;

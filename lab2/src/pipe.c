@@ -35,24 +35,26 @@ void pipe_init()
 {
     memset(&pipe, 0, sizeof(Pipe_State));
     pipe.PC = 0x00400000;
+    pipe.cycle_counter = 0;
 
     // initialize caches
-    pipe.icache = cache_init(64, 4, 11, 5, 0x3F);
-    pipe.dcache = cache_init(256, 8, 13, 5, 0xFF);
-    pipe.l2_cache = cache_init(512, 16, 14, 5, 0x1FF);
+    pipe.icache = cache_init(64, 4, 11, 5, 0x3F, ICACHE);
+    pipe.dcache = cache_init(256, 8, 13, 5, 0xFF, DCACHE);
+    pipe.l2_cache = cache_init(512, 16, 14, 5, 0x1FF, L2_CACHE);
 
     // initialize the memory controller
-    pipe.mem_con = mem_con_init(8, 64*1024, 8*1024, 32);
+    pipe.mem_con = mem_con_init(8, 64*1024, 8*1024, 8);
 }
 
 void cache_update_all() {
-    l2_cache_update(pipe.l2_cache);
+    l2_cache_update(pipe.l2_cache, pipe.mem_con, pipe.icache, pipe.dcache);
     l1_cache_update(pipe.dcache);
     l1_cache_update(pipe.icache);
 }
 
 void pipe_cycle()
 {
+    pipe.cycle_counter++;
 #ifdef DEBUG
     printf("\n\n----\n\nPIPELINE:\n");
     printf("DCODE: "); print_op(pipe.decode_op);
@@ -62,6 +64,7 @@ void pipe_cycle()
     printf("\n");
 #endif // DEBUG
 
+    mem_con_update(pipe.mem_con, pipe.cycle_counter);
     cache_update_all();
 
     pipe_stage_wb();

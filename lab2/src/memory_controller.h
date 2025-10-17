@@ -24,9 +24,10 @@
 // enum to identify the cache type
 typedef enum {
     UNDEF,
+    L2_CACHE,
     ICACHE,
     DCACHE
-} l1_cache_type_e;
+} cache_type_e;
 
 // enum to hold the state of a row buffer
 typedef enum {
@@ -41,7 +42,10 @@ typedef struct {
     int16_t done;
     int16_t valid;
     uint32_t address;
-    l1_cache_type_e type;
+    cache_type_e type;
+    uint64_t cycle;
+    uint32_t idx;
+    uint32_t ready_counter;
 } mshr_t;
 
 
@@ -49,8 +53,10 @@ typedef struct {
 typedef struct mem_req_t{
     uint32_t address;
     int8_t mem_stage;
+    mshr_t* mshr;
     uint32_t mshr_idx;
-    uint32_t cycle; // the cycle the request was issued
+    int8_t valid; // indicator if this is a valid entry
+    uint64_t cycle; // the cycle the request was issued
 } mem_req_t;
 
 
@@ -82,6 +88,9 @@ typedef struct {
 
     // L2 cache interface
     mshr_t l2_mshr[L2_CACHE_NUM_MSHR];
+
+    // cycle counter
+    uint64_t cycle;
 } mem_con_t;
 
 
@@ -90,7 +99,7 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
 void mem_con_destroy(mem_con_t* mem_con);
 
 // pipeline interface
-void mem_con_update(mem_con_t* mem_con);
+void mem_con_update(mem_con_t* mem_con, uint64_t cycle);
 
 // cache interface
 void mem_con_access(mem_con_t* mem_con, uint32_t mshr_idx);
