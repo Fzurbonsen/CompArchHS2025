@@ -147,10 +147,6 @@ void pipe_stage_wb()
 
 void pipe_stage_mem()
 {
-    // decrease the data cache stall tracker
-    if (pipe.data_cache_stall > 0)
-        pipe.data_cache_stall--;
-
     /* if there is no instruction in this pipeline stage, we are done */
     if (!pipe.mem_op)
         return;
@@ -162,20 +158,21 @@ void pipe_stage_mem()
     if (op->is_mem) {
         val = mem_read_32(op->mem_addr & ~3);
 
-        // if the the data is not yet ready we need to stall and are done
-        if (pipe.data_cache_stall > 0)
+        // check if the cache is in a stall
+        if (cache_is_stall(pipe.dcache))
             return;
 
-        // if we are not still working on an old instruction we can get the new one.
-        if (!pipe.data_stall) {
-            pipe.data_cache_stall = cache_stall(op->mem_addr, pipe.dcache, pipe.l2_cache);
-            pipe.data_stall = 1;
-            if (pipe.data_cache_stall > 0)
+        // check if the cache has valid data
+        if (!(cache_valid(pipe.dcache))) {
+            cache_access(pipe.dcache, pipe.l2_cache, op->mem_addr);
+            // check if this acces caused a stall
+            if (cache_is_stall(pipe.dcache))
                 return;
         }
 
-        // the memory for this instruction is ready and we can execute it.
-        pipe.data_stall = 0;
+        // complete the handshake with the cache
+        cache_ready(pipe.dcache);
+
     }
 
     switch (op->opcode) {
