@@ -35,8 +35,8 @@ typedef struct {
 
 // MSHR struct for l2 cache
 typedef struct {
-    int8_t done;
-    int8_t valid;
+    int16_t done;
+    int16_t valid;
     uint32_t address;
 } mshr_t;
 

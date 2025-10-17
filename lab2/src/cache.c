@@ -67,6 +67,7 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
 #define MEM_ACCESS_TIME 50
 #define L2_CACHE_HIT_STALL 15
 #define L2_CACHE_MISS_STALL 5 + MEM_ACCESS_TIME + 5
+#define L2_CACHE_BLOCK_OFFSET 5 // log2(32) = 5 as the cache blocks have size 32 bytes
 
 
 // MSH-register table for the L2 cache
@@ -76,7 +77,7 @@ static mshr_t l2_mshr[L2_CACHE_NUM_MSHR] = {0}; // initialize at zero
 // function to find a free MSHR or return -1 if there is none
 static int find_free_mshr() {
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) { // iterate over all MSHRs
-        if (l2_mshr[i].valid) return i; // if a free MSHR is found we return
+        if (l2_mshr[i].valid == 0) return i; // if a free MSHR is found we return
     }
     return -1; // if no free MSHR is found we return -1
 }
@@ -84,10 +85,10 @@ static int find_free_mshr() {
 
 // function to allocate an MSH-register and return its index in the MSHR table or return -1 if no free register is found
 static int alloc_mshr(uint32_t address) {
-    uint32_t idx = find_free_mshr();
+    int32_t idx = find_free_mshr();
     if (idx >= 0) {
         l2_mshr[idx].done = 0; // request in process but not yet done
-        l2_mshr[idx].valid = 0; // MSHR is in use
+        l2_mshr[idx].valid = 1; // MSHR is in use
         l2_mshr[idx].address = address;
     }
     return idx;
@@ -98,7 +99,7 @@ static int alloc_mshr(uint32_t address) {
 static void free_mshr(uint32_t idx) {
     if (idx >= 0 && idx < L2_CACHE_NUM_MSHR) {
         l2_mshr[idx].done = 0;
-        l2_mshr[idx].valid = 1; // MSHR is not in use and can be reused
+        l2_mshr[idx].valid = 0; // MSHR is not in use and can be reused
         l2_mshr[idx].address = 0;
         return;
     }
@@ -127,6 +128,23 @@ static int l2_cache_stall(uint32_t in, cache_t* cache) {
     }
 
     // if we have a cache miss we need to allocate a MSHR
+    uint32_t block_address = in >> L2_CACHE_BLOCK_OFFSET; // we look at the least significant bits od the address up to L2_CACHE_BLOCK_OFFSET
+    uint32_t mshr_idx = alloc_mshr(block_address);
+    if (mshr_idx < 0) {
+        // handle if we do not find a free MSHR this should not happen with our current setup
+        fprintf(stderr, "[cache]error: no free MSHR\n");
+        fprintf(stderr, "\tNo free MSHR could be found this is the current MSHR table:\n");
+        fprintf(stderr, "\t------------MSHR TABLE------------\n");
+        fprintf(stderr, "\t| IDX\t| DONE\t| VALID\t| ADDRESS\n");
+        fprintf(stderr, "\t----------------------------------\n");
+        for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
+            fprintf(stderr, "\t| %i\t| %i\t| %i\t| %u\n", i, l2_mshr[i].done, l2_mshr[i].valid, l2_mshr[i].address);
+            fprintf(stderr, "\t----------------------------------\n");
+        }
+        fprintf(stderr, "Error occured in function cache.c/static int l2_cache_stall(uint32_t in, cache_t* cache)\n");
+        exit(1);
+    }
+
 
     return 50;
 }
