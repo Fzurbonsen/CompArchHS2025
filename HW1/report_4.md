@@ -1,4 +1,4 @@
-# Review: "A Logic-In-Memory Computer" by Harold S. Stone
+# Review 4: "A Logic-In-Memory Computer" by Harold S. Stone
 
 ## Summary
 

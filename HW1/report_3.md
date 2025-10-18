@@ -1,4 +1,4 @@
-# Review: "Ambit: In-Memory Accelerator for Bulk Bitwise Operations Using Commodity DRAM Technology"
+# Review 3: "Ambit: In-Memory Accelerator for Bulk Bitwise Operations Using Commodity DRAM Technology"
 
 ## Summary
 

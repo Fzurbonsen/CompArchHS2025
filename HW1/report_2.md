@@ -1,4 +1,4 @@
-# Review: "A Scalable Processing-in-Memory Accelerator for Parallel Graph Processing"
+# Review 2: "A Scalable Processing-in-Memory Accelerator for Parallel Graph Processing"
 
 ## Summary
 
