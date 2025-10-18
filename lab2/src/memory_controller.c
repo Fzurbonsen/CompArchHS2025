@@ -13,6 +13,16 @@
 
 #include "memory_controller.h"
 
+#define DRAM_BANK_INDEX_SHIFT 5
+#define DRAM_BANK_INDEX_OFFSET 0x7u
+#define DRAM_ROW_INDEX_SHIFT 16
+
+#define DRAM_CMD_CYCLES 4
+#define DRAM_BANK_BUSY_CYCLES 100
+#define DRAM_DATA_CYCLES 50
+
+#define L2_CACHE_MEMORY_DELAY 5 + 5
+
 
 
 
@@ -38,8 +48,8 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
     mem_con->queue = (mem_req_t*)calloc(1, mem_con->queue_alloc*sizeof(mem_req_t));
 
     // init counters
-    mem_con->cmd_bus_counter = 0;
-    mem_con->data_bus_counter = 0;
+    mem_con->cmd_bus_cycle = 0;
+    mem_con->data_bus_cycle = 0;
 
     // init MSHR
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
@@ -64,6 +74,7 @@ void mem_con_destroy(mem_con_t* mem_con) {
 
 
 
+
 /*********************************
  *                               *
  *      Memory Controller        *
@@ -71,18 +82,160 @@ void mem_con_destroy(mem_con_t* mem_con) {
  *********************************/
 
 
+// function to get bank index
+static uint32_t get_bank_idx(uint32_t address) {
+    return (address >> DRAM_BANK_INDEX_SHIFT) & DRAM_BANK_INDEX_OFFSET;
+}
+
+
+// function to get row index
+static uint32_t get_row_idx(uint32_t address) {
+    return address >> DRAM_ROW_INDEX_SHIFT;
+}
+
+
+// function to get row buffer state of a memory request
+static row_buffer_state_e get_row_buffer_state(mem_con_t* mem_con, mem_req_t* mem_req) {
+    uint32_t bank_idx = get_bank_idx(mem_req->address);
+    uint32_t row_idx = get_row_idx(mem_req->address);
+
+    dram_bank_t* banks = mem_con->banks;
+
+    if (!banks[bank_idx].row_open)
+        return ROW_BUFFER_MISS;
+
+    if (banks[bank_idx].open_row_idx == row_idx)
+        return ROW_BUFFER_HIT;
+    return ROW_BUFFER_CONFLICT;
+}
 
 
 // function to decide which of two memory requests to schedule first
-static mem_req_t* find_prio_req(mem_req_t* mem_req1, mem_req_t* mem_req2) {
+static mem_req_t* find_prio_req(mem_con_t* mem_con, mem_req_t* mem_req1, mem_req_t* mem_req2) {
 
-    
+    // rule 1: row-buffer hits win over everything else:
+    row_buffer_state_e state1 = get_row_buffer_state(mem_con, mem_req1);
+    row_buffer_state_e state2 = get_row_buffer_state(mem_con, mem_req2);
+    if (state1 == ROW_BUFFER_HIT && state2 != ROW_BUFFER_HIT) return mem_req1;
+    if (state2 == ROW_BUFFER_HIT) return mem_req2;
 
+    // rule 2: older requests get prioritized:
+    if (mem_req1->cycle < mem_req2->cycle) return mem_req1;
+    if (mem_req2->cycle < mem_req1->cycle) return mem_req2;
+
+    // rule 3: dcache requests get prioritized
+    if (mem_req1->mem_stage) return mem_req1;
+    return mem_req2;
 }
 
+
+// function to determine if a request is schedulable
 static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
+    row_buffer_state_e state = get_row_buffer_state(mem_con, mem_req);
+
+    // counters to determine when what bus/bank is used
+    uint32_t cmd_access_start = mem_con->cycle;
+    uint32_t cmd_access_end = mem_con->cycle;
+    uint32_t bank_access_end = mem_con->cycle;
+    uint32_t data_access_end = mem_con->cycle;
+
+
+
+    switch (state) {
+        case ROW_BUFFER_HIT: // READ/WRITE
+            cmd_access_end = cmd_access_start + DRAM_CMD_CYCLES * 1;
+            bank_access_end = cmd_access_end + DRAM_BANK_BUSY_CYCLES;
+            data_access_end = bank_access_end + DRAM_DATA_CYCLES;
+            break;
+
+        case ROW_BUFFER_MISS: // ACTIVATE, READ/WRITE
+            cmd_access_end = cmd_access_start + DRAM_CMD_CYCLES * 2;
+            bank_access_end = cmd_access_end + DRAM_BANK_BUSY_CYCLES;
+            data_access_end = bank_access_end + DRAM_DATA_CYCLES;
+            break;
+
+        case ROW_BUFFER_CONFLICT: // PRECHARGE, ACTIVATE, READ/WRITE
+            cmd_access_end = cmd_access_start + DRAM_CMD_CYCLES * 3;
+            bank_access_end = cmd_access_end + DRAM_BANK_BUSY_CYCLES;
+            data_access_end = bank_access_end + DRAM_DATA_CYCLES;
+            break;
+
+        default:
+            fprintf(stderr, "[mem_con]error: invalid row buffer state!\n");
+            fprintf(stderr, "The state %i is not recognized.\n", state);
+            fprintf(stderr, "Error occured at: memory_controller.c/is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req)\n");
+            exit(1);
+    }
+
+    // decrease to account for lost initial cycle
+    cmd_access_end--;
+    data_access_end--;
+
+
+    // condition 1: command and address bus have to be free for the entire access
+    for (int cycle = cmd_access_start; cycle < cmd_access_end; ++cycle) {
+        if (cycle < mem_con->cmd_bus_cycle) // if the access is before the cmd/address bus is free we return 0
+            return 0;
+    }
+
+    // condition 2: bank must not be busy for the entire access
+    if (cmd_access_start < mem_con->banks[get_bank_idx(mem_req->address)].busy_cycle)
+        return 0;
+
+    // condition 3: data bus has to be free for the data transfer
+    for (int cycle = bank_access_end; cycle < data_access_end; ++cycle) {
+        if (cycle < mem_con->data_bus_cycle)
+            return 0;
+    }
 
     return 1;
+}
+
+
+// function to issue memory request
+static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
+    row_buffer_state_e state = get_row_buffer_state(mem_con, mem_req);
+    uint32_t row = get_row_idx(mem_req->address);
+    dram_bank_t* bank = &mem_con->banks[get_bank_idx(mem_req->address)];
+
+    // counters to determine when what bus/bank is used
+    uint32_t cycles = mem_con->cycle;
+
+
+
+    switch (state) {
+        case ROW_BUFFER_HIT:
+            cycles += DRAM_CMD_CYCLES;
+            break;
+
+        case ROW_BUFFER_MISS:
+            cycles += DRAM_CMD_CYCLES * 2;
+            bank->row_open = 1;
+            bank->open_row_idx = row;
+            break;
+
+        case ROW_BUFFER_CONFLICT:
+            cycles += DRAM_CMD_CYCLES * 3;
+            bank->row_open = 1;
+            bank->open_row_idx = row;
+            break;
+
+        default:
+            fprintf(stderr, "[mem_con]error: invalid row buffer state!\n");
+            fprintf(stderr, "The state %i is not recognized.\n", state);
+            fprintf(stderr, "Error occured at: memory_controller.c/issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req)\n");
+            exit(1);
+    }
+
+    // updated the bus/bank metatdata
+    mem_con->cmd_bus_cycle = cycles;
+    bank->busy_cycle = cycles + DRAM_BANK_BUSY_CYCLES;
+    mem_con->data_bus_cycle = cycles + DRAM_BANK_BUSY_CYCLES + DRAM_DATA_CYCLES;
+
+    // update the MSHR
+    mem_req->mshr->ready_cycle = cycles + DRAM_BANK_BUSY_CYCLES + DRAM_DATA_CYCLES + L2_CACHE_MEMORY_DELAY - 1;
+
+    mem_req->valid = 0; // invalidate the memory request as it has been processed
 }
 
 
@@ -94,6 +247,8 @@ static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
  *                               *
  *********************************/
 
+
+// function to print the entire queue
 static void mem_queue_print(FILE* file, mem_con_t* mem_con) {
     fprintf(file, "\t-----------MEMORY REQUEST QUEUE-----------\n");
     fprintf(file, "\t| VALID\t| MSHR\t| MEM\t| CYCLE\t| ADDR\n");
@@ -109,6 +264,8 @@ static void mem_queue_print(FILE* file, mem_con_t* mem_con) {
     fprintf(file, "\n");
 }
 
+
+// function to push a request to the queue
 static void mem_queue_push_back(mem_con_t* mem_con, mshr_t* mshr) {
     mem_con->queue_size++; // increment queue size
     if (mem_con->queue_size > mem_con->queue_alloc) {
@@ -141,6 +298,18 @@ static void mem_queue_push_back(mem_con_t* mem_con, mshr_t* mshr) {
 }
 
 
+// function to print the MSHRs
+void mshr_print(FILE* file, mshr_t* mshr) {
+    fprintf(file, "\t------------------MSHR TABLE------------------\n");
+    fprintf(file, "\t| IDX\t| DONE\t| VALID\t| READY_CYCLE\t| ADDRESS\n");
+    fprintf(file, "\t----------------------------------------------\n");
+    for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
+        fprintf(file, "\t| %i\t| %i\t| %i\t| %u\t\t| %u\n", i, mshr[i].done, mshr[i].valid, mshr[i].ready_cycle, mshr[i].address);
+        fprintf(file, "\t----------------------------------------------\n");
+    }
+}
+
+
 
 
 /*********************************
@@ -158,10 +327,8 @@ static void mem_queue_push_back(mem_con_t* mem_con, mshr_t* mshr) {
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
         mshr_t* mshr = &mem_con->l2_mshr[i];
         if (mshr->valid) {
-            mshr->ready_counter--;
-
             // if a request is ready this cycle then we label it as done
-            if (mshr->ready_counter == 0) {
+            if (mshr->ready_cycle == mem_con->cycle) {
                 mshr->done = 1;
             }
         }
@@ -178,11 +345,6 @@ static void mem_queue_push_back(mem_con_t* mem_con, mshr_t* mshr) {
         // filter only the valid entries
         if (curr_req->valid) {
 
-            // test:
-            // set the request to done and let the cache claim it
-            curr_req->mshr->ready_counter = 49;
-            curr_req->valid = 0;
-
             // test if the request is schedulable
             if (is_schedulable(mem_con, curr_req)) {
 
@@ -192,7 +354,7 @@ static void mem_queue_push_back(mem_con_t* mem_con, mshr_t* mshr) {
                     req_found = 1;
                 } else {
                     // find the prioritized request
-                    mem_req = find_prio_req(curr_req, mem_req);
+                    mem_req = find_prio_req(mem_con, curr_req, mem_req);
                 }
             }
         }
@@ -200,6 +362,9 @@ static void mem_queue_push_back(mem_con_t* mem_con, mshr_t* mshr) {
 
     if (!req_found)
         return;
+
+    // issue the memory request
+    issue_mem_req(mem_con, mem_req);
  }
 
 

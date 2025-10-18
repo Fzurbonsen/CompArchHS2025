@@ -311,9 +311,6 @@ void l1_cache_update(cache_t* cache) {
 // function to update an l2 cache
 void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_t* dcache) {
 
-    // print l1 cache stall states
-    fprintf(stderr, "");
-
     // check the MSHRs
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
         mshr_t* mshr = &mem_con->l2_mshr[i];

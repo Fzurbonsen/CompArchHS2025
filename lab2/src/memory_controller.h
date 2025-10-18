@@ -45,7 +45,7 @@ typedef struct {
     cache_type_e type;
     uint64_t cycle;
     uint32_t idx;
-    uint32_t ready_counter;
+    uint32_t ready_cycle;
 } mshr_t;
 
 
@@ -63,7 +63,7 @@ typedef struct mem_req_t{
 // struct to hold the DRAM banks
 typedef struct {
     int8_t busy;
-    uint32_t busy_counter;
+    uint32_t busy_cycle; // cycle untill which the bank is busy
     int8_t row_open;
     uint32_t open_row_idx;
 } dram_bank_t;
@@ -83,8 +83,8 @@ typedef struct {
     size_t row_size;
 
     // bus counters
-    uint32_t cmd_bus_counter;
-    uint32_t data_bus_counter;
+    uint32_t cmd_bus_cycle; // cycle untill which the cmd bus is used
+    uint32_t data_bus_cycle; // cycle untill which the data bus is used
 
     // L2 cache interface
     mshr_t l2_mshr[L2_CACHE_NUM_MSHR];
