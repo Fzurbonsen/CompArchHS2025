@@ -4,4 +4,5 @@ lab1/.vscode
 lab1/data
 lab1/inputs/benchmark/Lab7
 lab1/run.sh
+lab2/basesim*
 *slurm*

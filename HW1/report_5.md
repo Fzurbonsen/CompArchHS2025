@@ -15,7 +15,7 @@ The paper is an early instance of in-memory-processing. It provides a fast and w
 ## Weaknesses
 
 The paper has fairly few concrete numbers and results. This is an issue as it complicates the assessment of the system's actual performance and viability in diverse scenarios. The praoposed extension to C does not follow a general standard which can be more confusing then helpful in certain scenarios and which also greatly reduces the interoperability of the system. The paper also claims the system to be scalable and easy to integrate into greater systems. While their anecdotal evidence of integrating Terasys into an existing compute system and integrating it into a supercomputer seems to back this up, there is a lack of evidence to substantiate such a claim in its general form.
-s
+
 ## My POV
 
 The paper was an early adopter of in-memory-processing and it is easy to propose improvements from a modern viewpoint. But this viewpoint wouldn't exist if not for papers such as this that lay ground work for all the following research. While dbC did not catch on, the concept of in-memory-processing verymuch did. I would prefer it if the paper would have provided more actual data so that I could further assess the actual performance of the system. Nonetheless it is clear that Terasys's concepts were a success as we find similar architecture in modern state-of-the-art GPUs and compute capable DRAM.

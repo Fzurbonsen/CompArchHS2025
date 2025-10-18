@@ -2,40 +2,44 @@
 
 ## Summary
 
-The paper outlines the memory bandwidth bottleneck of modern computer systems and outlines a solution by proposing an Processing-in-Memory accelerator called Teseract. It outlines its design and functionality establishes a perfromence benchmarking methodology and analyses the results. On the conceptual side it makes the following points:
+The paper outlines the memory bandwidth bottleneck of modern computer systems and proposes a solution by introducing a Processing-in-Memory accelerator called **Tesseract**. It outlines its design and functionality, establishes a performance benchmarking methodology, and analyzes the results. On the conceptual side, it makes the following points:
 
-- Modern computer systems are bottlenecked by their memory bandwith as CPUs are limited by their I/O and power pins.
-- As a consequence to double the memory that can be computed we need to double the cores which is inefficient.
-- An in-Memory processor can provide a way higher memory bandwidth therfore allowing for more efficient scaling.
+- Modern computer systems are bottlenecked by their memory bandwidth as CPUs are limited by their I/O and power pins.  
+- As a consequence, to double the memory that can be computed, we need to double the cores, which is inefficient.  
+- An in-memory processor can provide much higher memory bandwidth, therefore allowing for more efficient scaling.  
 
-The paper proposes Teseract with the following design characteristics:
+The paper proposes **Tesseract** with the following design characteristics:
 
-- Teseract is an in-Memory processor that is integrated into DRAM memory.
-- Teseract is made up of an In-Order Core, a prefetching system with list and message prefetching. List prefetching allows for prefetching of predictable stride patterns while message prefetching allows the host CPU do pass hints with the instruction as to what memory should be prefetched.
-- The host CPU can offload instructions through either blocking or non-blocking function calls to Teseract. Where blocking function calls block the CPU untill a response, a return value, arrives. Non-blocking functions do not require to be waited for as they have no response.
+- Tesseract is an in-memory processor that is integrated into DRAM memory.  
+- Tesseract is made up of an in-order core and a prefetching system with list and message prefetching.  
+  - *List prefetching* allows for prefetching of predictable stride patterns.  
+  - *Message prefetching* allows the host CPU to pass hints with the instruction as to what memory should be prefetched.  
+- The host CPU can offload instructions through either blocking or non-blocking function calls to Tesseract.  
+  - Blocking function calls block the CPU until a response (a return value) arrives.  
+  - Non-blocking functions do not need to be waited for, as they have no response.  
 
-The paper evalutes the Teseract system as follows:
+The paper evaluates the Tesseract system as follows:
 
-- It uses a set of "interesting" problems that are known to be very memory bandwidth intensive such as graph traversals. Where due to thier lack of spatial and temproal locality a lot of cache misses occur.
-- The performance of the Teseract system is compared to a conventional DDR3-based system.
-- The Teseract system wastly outperforms the conventional setup on all tests and it is ilustrated that this is a consequence of the memory bandwidth bottleneck in the conventional system.
-- A further analysis of Teseracts prefetching and barrier/interruptions is performed where it is shown that the long message queue allows the system to very efficiently perform prefetching.
+- It uses a set of “interesting” problems that are known to be very memory bandwidth-intensive, such as graph traversals. These have poor spatial and temporal locality, resulting in a high number of cache misses.  
+- The performance of the Tesseract system is compared to a conventional DDR3-based system.  
+- The Tesseract system vastly outperforms the conventional setup on all tests, illustrating that this improvement is a direct consequence of overcoming the memory bandwidth bottleneck.  
+- A further analysis of Tesseract’s prefetching and barrier/interrupt mechanisms is performed, showing that the long message queue allows the system to perform prefetching very efficiently.  
 
 ## Strengths
 
-The paper very clearly illustrates the memory bandwidth bottleneck, it proposes a solution, and demonstrates the solutions performance. The shown Tesract system provides clear advantages in the test cases. I.e. it proves that for high memory bandwitdth computation an in memory processor outperforms a conventional processor by a wide margin. The Teseract system is configurable allowing application not only in the by the paper proposed graph problems but also for other problems that hit the memory bandwidth bottleneck.
+The paper clearly illustrates the memory bandwidth bottleneck, proposes a solution, and demonstrates the solution’s performance. The shown Tesseract system provides clear advantages in the test cases. It proves that for high-memory-bandwidth computation, an in-memory processor outperforms a conventional processor by a wide margin. The Tesseract system is configurable, allowing application not only in the graph problems proposed in the paper but also in other problems that encounter the memory bandwidth bottleneck.
 
 ## Weaknesses
 
-The paper only shows the performance on a specific set of tests and does not provide any results for tests that would not favour or neccessitate an in-memory processor. While that is not the main point of the paper there is great value to see what costs oder benefits this setup has on other test cases. This would be important to asses wether it is just a very specific solution for a big, but still specific problem or whether it is a general solution.
+The paper only shows performance on a specific set of tests and does not provide results for tests that would not favor or necessitate an in-memory processor. While that is not the main point of the paper, there would be great value in seeing what costs or benefits this setup has on other test cases. This would be important to assess whether it is just a specific solution for a large but still narrow problem, or whether it can serve as a general solution.
 
-In the paper it is also stated that the system is cost-efficient but no numbers or further analysis of this is provided. While that clearly is not the core point of the paper it is still important to not only assess the technical but also the financial viability to a greater degree then just stating that it is "cost-efficient" which is an unclear term.
+In the paper, it is also stated that the system is cost-efficient, but no numbers or further analysis are provided. While that clearly is not the core point of the paper, it is still important to assess not only the technical but also the financial viability to a greater degree than simply stating that it is “cost-efficient,” which is an unclear term.
 
 ## My POV
 
-I see great value in the exploration of solving the memory-bandwidth bottleneck. And the proposed Tesract system seems very capable and performs exceedingly well on the given tests. I would have included a set of tests that would test conditions unfavourable for the tesreact system. Highly spatially and temporaly local processes would be a very interesting. Further I would be interested in the manufacturing cost of the system. As I am aware that the engineering cost can't fairly be assesed for a reserach project. But the manufacturing cost would give a helpful insight into the actual wide scale viability of the solution.
+I see great value in exploring solutions to the memory bandwidth bottleneck. The proposed Tesseract system seems very capable and performs exceedingly well on the given tests. I would have included a set of tests that would challenge the Tesseract system — for example, highly spatially and temporally local processes would be very interesting. Furthermore, I would be interested in the manufacturing cost of the system. While I understand that engineering cost cannot be fairly assessed for a research project, the manufacturing cost would provide helpful insight into the actual large-scale viability of the solution.
 
 ## Takeaways
 
-- In-Memory processing is a viable way to deal with the memroy bandwidth bottleneck. It provides a solution that is scalable. I.e. not neccesitating the increase of the number of CPUs to provide an increase in memory throughput.
-- Memory prefetching can be very powerfull in the right circumstances. If we have ample time between instruction decision and execution or if we have a great deal of knowledge about the following memory accesses (strided access patterns) then memory prefetching allows for very high performance.
+- In-memory processing is a viable way to address the memory bandwidth bottleneck. It provides a scalable solution that does not necessitate increasing the number of CPUs to achieve higher memory throughput.  
+- Memory prefetching can be very powerful in the right circumstances. If there is ample time between instruction decision and execution, or if there is strong knowledge about the following memory accesses (e.g., strided access patterns), then memory prefetching allows for very high performance.
