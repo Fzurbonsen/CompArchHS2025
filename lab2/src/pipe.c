@@ -10,6 +10,7 @@
 #include "shell.h"
 #include "mips.h"
 #include "cache.h"
+#include "memory_controller.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
