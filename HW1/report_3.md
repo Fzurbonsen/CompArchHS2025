@@ -31,3 +31,5 @@ Further exploration of chaining the AND, OR, and NOT operations would also have 
 
 - Ambit introduces a very powerful solution to parts of the memory bandwidth bottleneck. The concept of computing not just *in memory* but *with memory* seems very powerful and worthy of further exploration.  
 - The results of the paper are based on simulation rather than physical integration, meaning that all results must be taken with a grain of salt.
+
+\newpage

@@ -24,3 +24,5 @@ The paper was an early adopter of in-memory-processing and it is easy to propose
 
 - Terasys was an important early proof of concept for in-memory-processing that fule research to this day and provided the foundation for many modern architectures.
 - The paper highlights the importance of backing concepts with physical implementations to provide palpable results on which future research can build and to which it can compare itself.
+
+\newpage

@@ -36,3 +36,5 @@ I agree with his points about the compound interest of time investment and the i
 
 My main takeaways are the following:  
 In research, you have to be wholeheartedly committed to the work you are doing if you want it to succeed. And if you commit to something, then you should, both beforehand and during, think and reflect on whether what you are doing is important — if not to the world, then at least to yourself. I see this as a point that applies not only to research and science but to almost anything in life.
+
+\newpage

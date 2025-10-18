@@ -24,3 +24,5 @@ This paper had an incredible impact on the concept of in-memory computation. It 
 
 - This paper clearly demonstrates the merit of addressing and thinking about future problems before they become pressing issues.  
 - It very clearly establishes the foundations of in-memory computation as we know it today.
+
+\newpage
