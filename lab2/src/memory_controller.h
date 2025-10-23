@@ -66,6 +66,23 @@ typedef struct {
     int8_t* use; // use[n] tells whether a resource is used at cycle cycle_0+n
     size_t size; // n of predicted cycles
 } res_buf_t;
+/*
+ * Resource Buffer:
+ * The resource buffer struct is used to keep track of `size` cycles of future resource usage.
+ * To acomplish this it holds an array of size `size` with either 0s or 1s inidcating that the resource is unused or used respectively
+ * The resource buffer has to be updated before it is checked or filled. When it is updated the buffer array is shifted by the difference
+ * of the last cycle it has been updated and the current cycle
+ * 
+ * Example with buffer of size 11:
+ * 
+ * Cycle = n: (initial state)
+ * [0][1][1][1][0][1][1][0][0][0][1]
+ *
+ * Cycle = n + 5: (causes the next update, five is an arbitrary value)
+ * [0][1][1][1][0][1][1][0][0][0][1]
+ * <==============[1][1][0][0][0][1] - Shift the array to the left by 5
+ * [1][1][0][0][0][1][0][0][0][0][0] - We fill the array with zeros at the end
+*/
 
 
 // struct to hold the DRAM banks

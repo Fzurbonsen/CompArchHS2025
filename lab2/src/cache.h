@@ -32,6 +32,7 @@ typedef struct {
     uint32_t stall_counter; // counter to track the memory access
     int8_t valid; // indicator wether the cache output is valid
     int8_t is_stall; // indicator whether the cache is stalled
+    uint32_t current_address; // if we are in a stall this holds the address of the instruction being fetched
 
     // cache config
     int n_sets;

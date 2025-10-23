@@ -83,11 +83,12 @@ static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
 
 
 // function to start a stall in the L1 cache
-static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall) {
+static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall, uint32_t address) {
     if (is_stall > 0 && cycles > 0) {
         cache->is_stall = 1;
         cache->valid = 0;
         cache->stall_counter = cycles;
+        cache->current_address = address;
         return;
     }
     l1_cache_end_stall(cache, 1);
@@ -159,7 +160,7 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-            l1_cache_set_stall(l1_cache, L2_CACHE_HIT_STALL, L2_CACHE_HIT_STALL);
+            l1_cache_set_stall(l1_cache, L2_CACHE_HIT_STALL, L2_CACHE_HIT_STALL, in);
             return;
         }
     }
@@ -243,7 +244,7 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-            l1_cache_set_stall(cache, L1_CACHE_HIT_STALL, L1_CACHE_HIT_STALL);
+            l1_cache_set_stall(cache, L1_CACHE_HIT_STALL, L1_CACHE_HIT_STALL, in);
             return;
         }
     }
@@ -274,7 +275,7 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     l2_cache_access(in, l2_cache, cache, mem_con);
-    l1_cache_set_stall(cache, L1_CHACHE_MISS_STALL, L1_CHACHE_MISS_STALL);
+    l1_cache_set_stall(cache, L1_CHACHE_MISS_STALL, L1_CHACHE_MISS_STALL, in);
     return;
 
     // we offload the memory access to the L2 cache
@@ -336,7 +337,21 @@ void cache_flush(cache_t* cache) {
 
     // if the cache is currently fetching something from memory then we cancle that action
     if (cache->is_stall) {
-        // ToDo:
+        // identify the current address being fetched and invalidate it
+        uint32_t tag = cache->current_address >> cache->tag_shift;
+        uint32_t set_index = (cache->current_address >> cache->set_index_shift) & cache->set_index_off;
+
+        cache_block_t* set = &cache->blocks[set_index*cache->n_ways]; // get the set from the cache
+
+        // serach the set for the entry
+        for (int i = 0; i < cache->n_ways; ++i) {
+
+            // check if we have a hit
+            if (set[i].valid && set[i].tag == tag) {
+                set[i].valid = 0; // invalidate the entry
+                break;
+            }
+        }
     }
     cache->is_stall = 0;
     cache->valid = 0;
