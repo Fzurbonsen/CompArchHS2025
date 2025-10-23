@@ -60,10 +60,19 @@ typedef struct mem_req_t{
 } mem_req_t;
 
 
+// struct to hold the future usage of a limited resource
+typedef struct {
+    uint64_t cycle_0; // holds the cycle at the 0 position of the buffer
+    int8_t* use; // use[n] tells whether a resource is used at cycle cycle_0+n
+    size_t size; // n of predicted cycles
+} res_buf_t;
+
+
 // struct to hold the DRAM banks
 typedef struct {
     int8_t busy;
     uint32_t busy_cycle; // cycle untill which the bank is busy
+    res_buf_t* res_buf; // resource buffer to keep track when the bank is free
     int8_t row_open;
     uint32_t open_row_idx;
 } dram_bank_t;
@@ -85,6 +94,8 @@ typedef struct {
     // bus counters
     uint32_t cmd_bus_cycle; // cycle untill which the cmd bus is used
     uint32_t data_bus_cycle; // cycle untill which the data bus is used
+    res_buf_t* cmd_bus_buffer; // buffer to keep track of the cmd/address bus usage
+    res_buf_t* data_bus_buffer; // buffer to keep track of the data bus usage
 
     // L2 cache interface
     mshr_t l2_mshr[L2_CACHE_NUM_MSHR];

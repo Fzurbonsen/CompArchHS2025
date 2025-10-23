@@ -65,14 +65,14 @@ void pipe_cycle()
     printf("\n");
 #endif // DEBUG
 
-    mem_con_update(pipe.mem_con, pipe.cycle_counter);
-    cache_update_all();
-
     pipe_stage_wb();
     pipe_stage_mem();
     pipe_stage_execute();
     pipe_stage_decode();
     pipe_stage_fetch();
+
+    mem_con_update(pipe.mem_con, pipe.cycle_counter);
+    cache_update_all();
 
     /* handle branch recoveries */
     if (pipe.branch_recover) {

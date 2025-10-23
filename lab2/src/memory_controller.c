@@ -13,6 +13,8 @@
 
 #include "memory_controller.h"
 
+#define DEBUG
+
 #define DRAM_BANK_INDEX_SHIFT 5
 #define DRAM_BANK_INDEX_OFFSET 0x7u
 #define DRAM_ROW_INDEX_SHIFT 16
@@ -32,6 +34,24 @@
  *                               *
  *********************************/
 
+
+// res_buf constructor
+res_buf_t* res_buf_init(size_t size) {
+    res_buf_t* res_buf = (res_buf_t*)malloc(sizeof(res_buf_t));
+    res_buf->size = size;
+    res_buf->cycle_0 = 0;
+    res_buf->use = (int8_t*)calloc(1, size*sizeof(int8_t));
+    return res_buf;
+}
+
+
+// res_buf destructor
+void res_buf_destroy(res_buf_t* res_buf) {
+    free(res_buf->use);
+    free(res_buf);
+}
+
+
 // mem_con constructor
 mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t queue_alloc) {
     mem_con_t* mem_con = (mem_con_t*)malloc(sizeof(mem_con_t));
@@ -41,6 +61,10 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
     mem_con->n_rows = n_rows;
     mem_con->row_size = row_size;
     mem_con->banks = (dram_bank_t*)calloc(1, n_banks*sizeof(dram_bank_t));
+    for (int i = 0; i < n_banks; ++i) {
+        mem_con->banks[i].res_buf = res_buf_init(400);
+        // fprintf(stderr, "%i\n", mem_con->banks[i].res_buf->size);
+    }
 
     // init memory request queue
     mem_con->queue_size = 0;
@@ -50,6 +74,9 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
     // init counters
     mem_con->cmd_bus_cycle = 0;
     mem_con->data_bus_cycle = 0;
+    // create resource buffers for command/address and data bus
+    mem_con->cmd_bus_buffer = res_buf_init(400); // we will never look more then 400 cycles into the future as our longest timespan is 4 + 100 + 4 + 100 + 4 + 100 + 50 = 362 cycles
+    mem_con->data_bus_buffer = res_buf_init(400);
 
     // init MSHR
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
@@ -66,6 +93,9 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
 
 // mem_con destructor
 void mem_con_destroy(mem_con_t* mem_con) {
+    for (int i = 0; i < mem_con->n_banks; ++i) {
+        free(mem_con->banks[i].res_buf);
+    }
     free(mem_con->banks); // free the banks
     free(mem_con->queue); // free the queue
     mem_con->queue_alloc = 0;
@@ -80,6 +110,58 @@ void mem_con_destroy(mem_con_t* mem_con) {
  *      Memory Controller        *
  *                               *
  *********************************/
+
+
+// function to update a resource buffer to the current cycle
+static void res_buf_update(res_buf_t* res_buf, uint64_t cycle) {
+    if (res_buf->cycle_0 == cycle)
+        return;
+    
+    // calculate the buffer shift
+    int shift = cycle - res_buf->cycle_0;
+
+    // we shift the buffer iteratively
+    for (int i = 0; i < res_buf->size - shift; ++i) {
+        // fprintf(stderr, "%i\n", i+shift);
+        if (i+shift >= res_buf->size)
+            break;
+        res_buf->use[i] = res_buf->use[i+shift];
+    }
+
+    // zero the the remaining bits
+    for (int i = res_buf->size - shift < 0 ? 0 : res_buf->size - shift; i < res_buf->size; ++i) {
+        res_buf->use[i] = 0;
+    }
+
+    // update the cycle_0 
+    res_buf->cycle_0 = cycle;
+}
+
+
+// function to check if a span of a buffer is free in [start, end) (0 is the current cycle -> res_buf_update should always be called at least once efore this function per cycle)
+static int8_t res_buf_check(res_buf_t* res_buf, uint64_t start, uint64_t end) {
+
+    // iterate over the interval [start, end)
+    for (int i = start; i < end; ++i) {
+
+        // if we find an cycle where the buffer is used then we return 0 to indicate that the resource will not be free in that timespan
+        if (res_buf->use[i])
+            return 1;
+    }
+
+    // return 1 to inidcate the the resource is free
+    return 0;
+}
+
+
+// function to write a block to the resource buffer in span [start, end) (0 is the current cycle -> res_buf_update should always be called at least once efore this function per cycle)
+static void res_buf_write(res_buf_t* res_buf, uint64_t start, uint64_t end) {
+    
+    // iterate over the interval and fill the buffer
+    for (int i = start; i < end; ++i) {
+        res_buf->use[i] = 1;
+    }
+}
 
 
 // function to get bank index
@@ -133,31 +215,93 @@ static mem_req_t* find_prio_req(mem_con_t* mem_con, mem_req_t* mem_req1, mem_req
 static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
     row_buffer_state_e state = get_row_buffer_state(mem_con, mem_req);
 
-    // counters to determine when what bus/bank is used
-    uint32_t cmd_access_start = mem_con->cycle;
-    uint32_t cmd_access_end = mem_con->cycle;
-    uint32_t bank_access_end = mem_con->cycle;
-    uint32_t data_access_end = mem_con->cycle;
+    // set current cycle
+    uint64_t cycle_0 = mem_con->cycle;
 
+    // get resource buffers
+    res_buf_t* cmd_buf = mem_con->cmd_bus_buffer;
+    res_buf_t* bank_buf = mem_con->banks[get_bank_idx(mem_req->address)].res_buf;
+    res_buf_t* data_buf = mem_con->data_bus_buffer;
+
+    // variables to store delay cycles
+    uint64_t p_cmd_access_start;
+    uint64_t p_bank_access_start;
+    uint64_t a_cmd_access_start;
+    uint64_t a_bank_access_start;
+    uint64_t rw_cmd_access_start;
+    uint64_t rw_bank_access_start;
+    uint64_t rw_data_access_start;
+    uint64_t rw_data_access_end;
+
+    // update the resource buffers to the current cycle
+    res_buf_update(cmd_buf, cycle_0);
+    res_buf_update(data_buf, cycle_0);
+    res_buf_update(bank_buf, cycle_0);
 
 
     switch (state) {
         case ROW_BUFFER_HIT: // READ/WRITE
-            cmd_access_end = cmd_access_start + DRAM_CMD_CYCLES * 1;
-            bank_access_end = cmd_access_end + DRAM_BANK_BUSY_CYCLES;
-            data_access_end = bank_access_end + DRAM_DATA_CYCLES;
+            // we only run a READ/WRITE
+            rw_cmd_access_start = 0;
+            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
+            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
+            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
+
+            // check the resource buffers
+            if (res_buf_check(cmd_buf, rw_cmd_access_start, rw_bank_access_start))
+                return 0;
+            if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
+                return 0;
+            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end))
+                return 0;
             break;
 
         case ROW_BUFFER_MISS: // ACTIVATE, READ/WRITE
-            cmd_access_end = cmd_access_start + DRAM_CMD_CYCLES * 2;
-            bank_access_end = cmd_access_end + DRAM_BANK_BUSY_CYCLES;
-            data_access_end = bank_access_end + DRAM_DATA_CYCLES;
+            // we have to check both the ACTIVATE and the READ/WRITE
+            a_cmd_access_start = 0;
+            a_bank_access_start = a_cmd_access_start + DRAM_CMD_CYCLES;
+            rw_cmd_access_start = a_bank_access_start + DRAM_BANK_BUSY_CYCLES;
+            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
+            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
+            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
+
+            // check the resource buffers
+            if (res_buf_check(cmd_buf, a_cmd_access_start, a_bank_access_start))
+                return 0;
+            if (res_buf_check(bank_buf, a_bank_access_start, rw_cmd_access_start))
+                return 0;
+            if (res_buf_check(cmd_buf, rw_cmd_access_start, rw_bank_access_start))
+                return 0;
+            if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
+                return 0;
+            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end));
             break;
 
         case ROW_BUFFER_CONFLICT: // PRECHARGE, ACTIVATE, READ/WRITE
-            cmd_access_end = cmd_access_start + DRAM_CMD_CYCLES * 3;
-            bank_access_end = cmd_access_end + DRAM_BANK_BUSY_CYCLES;
-            data_access_end = bank_access_end + DRAM_DATA_CYCLES;
+            // we have to check the PRECHARGE, the ACTIVATE, and the READ/WRITE
+            p_cmd_access_start = 0;
+            p_bank_access_start = p_cmd_access_start + DRAM_CMD_CYCLES;
+            a_cmd_access_start = p_bank_access_start + DRAM_BANK_BUSY_CYCLES;
+            a_bank_access_start = a_cmd_access_start + DRAM_CMD_CYCLES;
+            rw_cmd_access_start = a_bank_access_start + DRAM_BANK_BUSY_CYCLES;
+            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
+            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
+            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
+
+            // check the resource buffers
+            if (res_buf_check(cmd_buf, p_cmd_access_start, p_bank_access_start))
+                return 0;
+            if (res_buf_check(bank_buf, p_bank_access_start, a_cmd_access_start))
+                return 0;
+            if (res_buf_check(cmd_buf, a_cmd_access_start, a_bank_access_start))
+                return 0;
+            if (res_buf_check(bank_buf, a_bank_access_start, rw_cmd_access_start))
+                return 0;
+            if (res_buf_check(cmd_buf, rw_cmd_access_start, rw_bank_access_start))
+                return 0;
+            if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
+                return 0;
+            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end));
             break;
 
         default:
@@ -166,28 +310,6 @@ static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
             fprintf(stderr, "Error occured at: memory_controller.c/is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req)\n");
             exit(1);
     }
-
-    // decrease to account for lost initial cycle
-    cmd_access_end--;
-    data_access_end--;
-
-
-    // condition 1: command and address bus have to be free for the entire access
-    for (int cycle = cmd_access_start; cycle < cmd_access_end; ++cycle) {
-        if (cycle < mem_con->cmd_bus_cycle) // if the access is before the cmd/address bus is free we return 0
-            return 0;
-    }
-
-    // condition 2: bank must not be busy for the entire access
-    if (cmd_access_start < mem_con->banks[get_bank_idx(mem_req->address)].busy_cycle)
-        return 0;
-
-    // condition 3: data bus has to be free for the data transfer
-    for (int cycle = bank_access_end; cycle < data_access_end; ++cycle) {
-        if (cycle < mem_con->data_bus_cycle)
-            return 0;
-    }
-
     return 1;
 }
 
