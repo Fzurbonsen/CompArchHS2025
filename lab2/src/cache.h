@@ -29,7 +29,6 @@ typedef struct {
     // cache metadata
     cache_type_e type;
     cache_block_t* blocks;
-    uint32_t stall_counter; // counter to track the memory access
     int8_t valid; // indicator wether the cache output is valid
     int8_t is_stall; // indicator whether the cache is stalled
     uint32_t current_address; // if we are in a stall this holds the address of the instruction being fetched

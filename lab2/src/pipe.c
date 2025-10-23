@@ -44,7 +44,7 @@ void pipe_init()
     pipe.l2_cache = cache_init(512, 16, 14, 5, 0x1FF, L2_CACHE);
 
     // initialize the memory controller
-    pipe.mem_con = mem_con_init(8, 64*1024, 8*1024, 8);
+    pipe.mem_con = mem_con_init(8, 64*1024, 8*1024, 4);
 }
 
 void cache_update_all() {
@@ -58,6 +58,7 @@ void pipe_cycle()
     pipe.cycle_counter++;
 #ifdef DEBUG
     printf("\n\n----\n\nPIPELINE:\n");
+    printf("CYCLE: "); printf("%lu\n", pipe.cycle_counter);
     printf("DCODE: "); print_op(pipe.decode_op);
     printf("EXEC : "); print_op(pipe.execute_op);
     printf("MEM  : "); print_op(pipe.mem_op);
@@ -85,7 +86,6 @@ void pipe_cycle()
         if (pipe.branch_flush >= 2) {
             if (pipe.decode_op) free(pipe.decode_op);
             pipe.decode_op = NULL;
-            // cache_flush(pipe.icache);
         }
 
         if (pipe.branch_flush >= 3) {
@@ -96,13 +96,15 @@ void pipe_cycle()
         if (pipe.branch_flush >= 4) {
             if (pipe.mem_op) free(pipe.mem_op);
             pipe.mem_op = NULL;
-            // cache_flush(pipe.dcache);
+            cache_flush(pipe.dcache);
         }
 
         if (pipe.branch_flush >= 5) {
             if (pipe.wb_op) free(pipe.wb_op);
             pipe.wb_op = NULL;
         }
+
+        // cache_flush(pipe.icache);
 
         pipe.branch_recover = 0;
         pipe.branch_dest = 0;
@@ -149,7 +151,7 @@ void pipe_stage_wb()
             pipe.PC = op->pc; /* fetch will do pc += 4, then we stop with correct PC */
             RUN_BIT = 0;
 
-            // the fetch stage might be stalled an not do pc += 4 we need to account for that
+            // the fetch stage might be stalled and not do pc += 4 we need to account for that
             if (cache_is_stall(pipe.icache))
                 pipe.PC += 4;
         }
@@ -714,7 +716,6 @@ void pipe_stage_fetch()
     /* if pipeline is stalled (our output slot is not empty), return */
     if (pipe.decode_op != NULL)
         return;
-
 
     // check if the cache is in a stall
     if (cache_is_stall(pipe.icache))

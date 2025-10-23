@@ -556,7 +556,7 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
 
             // indicate the used cycles in the buffers
             // ACTIVATE:
-            res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES);
+            res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES - 1);
             res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start);
             // READ/WRITE
             res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES);
@@ -584,7 +584,7 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
 
             // indicate the used cycles in the buffers
             // PRECHARGE:
-            res_buf_write(cmd_buf, p_cmd_access_start, p_cmd_access_start + DRAM_CMD_CYCLES);
+            res_buf_write(cmd_buf, p_cmd_access_start, p_cmd_access_start + DRAM_CMD_CYCLES - 1);
             res_buf_write(bank_buf, p_bank_access_start, rw_cmd_access_start);
             // ACTIVATE:
             res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES);
@@ -605,6 +605,7 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
     
     mem_req->mshr->ready_cycle = cycle_0 + rw_data_access_end; // set data ready cycle
     mem_req->valid = 0; // invalidate the memory request as it has been processed
+    mem_con->queue_size--; // downsize the queue
 }
 
 

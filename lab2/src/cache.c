@@ -36,7 +36,6 @@ cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, 
     cache->set_index_shift = set_index_shift;
     cache->set_index_off = set_index_off;
     cache->type = type;
-    cache->stall_counter = 0;
     cache->valid = 0;
     return cache;
 }
@@ -76,18 +75,17 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
 
 // function to unstall L1 cache and set the valid in the handshake
 static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
-    cache->stall_counter = 0;
     cache->is_stall = 0;
     cache->valid = valid;
 }
 
 
 // function to start a stall in the L1 cache
-static void l1_cache_set_stall(cache_t* cache, uint32_t cycles, uint32_t is_stall, uint32_t address) {
-    if (is_stall > 0 && cycles > 0) {
+static void l1_cache_set_stall(cache_t* cache, uint64_t cycle, uint32_t is_stall, uint32_t address) {
+    if (is_stall > 0) {
+        // fprintf(stderr, "stall in cache: %i, at cycle: %lu\n", cache->type, cycle);
         cache->is_stall = 1;
         cache->valid = 0;
-        cache->stall_counter = cycles;
         cache->current_address = address;
         return;
     }
@@ -160,7 +158,7 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-            l1_cache_set_stall(l1_cache, L2_CACHE_HIT_STALL, L2_CACHE_HIT_STALL, in);
+            l1_cache_set_stall(l1_cache, mem_con->cycle, L2_CACHE_HIT_STALL, in);
             return;
         }
     }
@@ -209,11 +207,6 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     mem_con_access(mem_con, mshr_idx);
-
-    // // update l2_mshr: this is somewhat redundant as we do not directly keep track of these metrics and only care about the stalls
-    // l2_mshr[mshr_idx].done = 1;
-    // clear_mshr(l2_mshr, mshr_idx);
-
     return;
 }
 
@@ -244,7 +237,7 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
         // check if we have a hit
         if (set[i].valid && set[i].tag == tag) {
             set[i].lru = cache_update_lru(set, i, set[i].lru, cache);
-            l1_cache_set_stall(cache, L1_CACHE_HIT_STALL, L1_CACHE_HIT_STALL, in);
+            l1_cache_set_stall(cache, mem_con->cycle, L1_CACHE_HIT_STALL, in);
             return;
         }
     }
@@ -275,7 +268,7 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     l2_cache_access(in, l2_cache, cache, mem_con);
-    l1_cache_set_stall(cache, L1_CHACHE_MISS_STALL, L1_CHACHE_MISS_STALL, in);
+    l1_cache_set_stall(cache, mem_con->cycle, L1_CHACHE_MISS_STALL, in); // WHY DOES THIS FUCK EVERYTHING
     return;
 
     // we offload the memory access to the L2 cache
@@ -297,15 +290,6 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 // function to update an l1 cache
 void l1_cache_update(cache_t* cache) {
 
-    // // decrease the stall counter
-    // if (cache->stall_counter > 0) {
-    //     cache->stall_counter--;
-    //     cache->valid = 0;
-    //     // if the cache reaches zero in this cycle this means that the data at its output is now valid
-    //     if (cache->stall_counter == 0) {
-    //         l1_cache_end_stall(cache, 1);
-    //     }
-    // }
 }
 
 
@@ -355,7 +339,6 @@ void cache_flush(cache_t* cache) {
     }
     cache->is_stall = 0;
     cache->valid = 0;
-    cache->stall_counter = 0;
 }
 
 
@@ -387,14 +370,4 @@ void cache_ready(cache_t* cache) {
 // function to handle a memory request
 void cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_con, uint32_t in) {
     l1_cache_access(cache, l2_cache, mem_con, in);
-
-    // if there is a cache stall caused by this access then we stall the cache is invalidated
-    if (cache->stall_counter > 0) {
-        cache->valid = 0;
-    }
-
-    // if no stall is caused then the data is valid
-    if (cache->stall_counter == 0) {
-        cache->valid = 1;
-    }
 }
