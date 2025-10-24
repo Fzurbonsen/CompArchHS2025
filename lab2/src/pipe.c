@@ -49,8 +49,8 @@ void pipe_init()
 
 void cache_update_all() {
     l2_cache_update(pipe.l2_cache, pipe.mem_con, pipe.icache, pipe.dcache);
-    l1_cache_update(pipe.dcache);
-    l1_cache_update(pipe.icache);
+    l1_cache_update(pipe.dcache, pipe.cycle_counter);
+    l1_cache_update(pipe.icache, pipe.cycle_counter);
 }
 
 void pipe_cycle()
@@ -104,7 +104,7 @@ void pipe_cycle()
             pipe.wb_op = NULL;
         }
 
-        // cache_flush(pipe.icache);
+        cache_flush(pipe.icache);
 
         pipe.branch_recover = 0;
         pipe.branch_dest = 0;
@@ -190,7 +190,6 @@ void pipe_stage_mem()
 
         // complete the handshake with the cache
         cache_ready(pipe.dcache);
-
     }
 
     switch (op->opcode) {

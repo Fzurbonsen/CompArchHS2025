@@ -603,7 +603,7 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
     }
 #endif // OVERLAP_CMD_AND_BANK
     
-    mem_req->mshr->ready_cycle = cycle_0 + rw_data_access_end; // set data ready cycle
+    mem_req->mshr->ready_cycle = cycle_0 + rw_data_access_end + L2_CACHE_MEMORY_DELAY; // set data ready cycle
     mem_req->valid = 0; // invalidate the memory request as it has been processed
     mem_con->queue_size--; // downsize the queue
 }

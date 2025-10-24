@@ -30,7 +30,11 @@ typedef struct {
     cache_type_e type;
     cache_block_t* blocks;
     int8_t valid; // indicator wether the cache output is valid
-    int8_t is_stall; // indicator whether the cache is stalled
+    int8_t is_stall; // indicator whether the cache is stalled:
+                     // 0: no stall
+                     // 1: L2 hit stall
+                     // 2: L2 miss stall
+    int64_t stall_start_cycle; // cycle to hold the start time of the stall
     uint32_t current_address; // if we are in a stall this holds the address of the instruction being fetched
 
     // cache config
@@ -63,7 +67,7 @@ void cache_ready(cache_t* cache);
 
 
 // function to update the cache each cycle
-void l1_cache_update(cache_t* cache);
+void l1_cache_update(cache_t* cache, uint64_t cycle);
 void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_t* dcache);
 void cache_flush(cache_t* cache);
 

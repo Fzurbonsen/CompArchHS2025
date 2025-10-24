@@ -74,7 +74,7 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
 
 
 // function to unstall L1 cache and set the valid in the handshake
-static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
+static void l1_cache_end_stall(cache_t* cache, int8_t valid, uint64_t cycle) {
     cache->is_stall = 0;
     cache->valid = valid;
 }
@@ -83,13 +83,13 @@ static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
 // function to start a stall in the L1 cache
 static void l1_cache_set_stall(cache_t* cache, uint64_t cycle, uint32_t is_stall, uint32_t address) {
     if (is_stall > 0) {
-        // fprintf(stderr, "stall in cache: %i, at cycle: %lu\n", cache->type, cycle);
-        cache->is_stall = 1;
+        cache->is_stall = is_stall;
         cache->valid = 0;
         cache->current_address = address;
+        cache->stall_start_cycle = cycle;
         return;
     }
-    l1_cache_end_stall(cache, 1);
+    l1_cache_end_stall(cache, 1, cycle);
     return;
 }
 
@@ -104,8 +104,9 @@ static void l1_cache_set_stall(cache_t* cache, uint64_t cycle, uint32_t is_stall
 
 
 #define MEM_ACCESS_TIME 50
-#define L2_CACHE_HIT_STALL 15
-#define L2_CACHE_MISS_STALL 5 + MEM_ACCESS_TIME + 5
+#define L2_CACHE_HIT_STALL 1
+#define L2_CACHE_MISS_STALL 2
+#define L2_CACHE_HIT_STALL_TIME 15
 #define L2_CACHE_BLOCK_OFFSET 5 // log2(32) = 5 as the cache blocks have size 32 bytes
 
 
@@ -207,6 +208,7 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     mem_con_access(mem_con, mshr_idx);
+    l1_cache_set_stall(l1_cache, mem_con->cycle, L2_CACHE_MISS_STALL, in);
     return;
 }
 
@@ -268,13 +270,7 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     l2_cache_access(in, l2_cache, cache, mem_con);
-    l1_cache_set_stall(cache, mem_con->cycle, L1_CHACHE_MISS_STALL, in); // WHY DOES THIS FUCK EVERYTHING
     return;
-
-    // we offload the memory access to the L2 cache
-    l2_cache_access(in, l2_cache, cache, mem_con);
-
-    // return l2_cache_stall(in, l2_cache); // if it is a cache miss then we stall for 50 cycles
 }
 
 
@@ -288,8 +284,10 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 
 
 // function to update an l1 cache
-void l1_cache_update(cache_t* cache) {
-
+void l1_cache_update(cache_t* cache, uint64_t cycle) {
+    if (cache->is_stall == 1 && cache->stall_start_cycle + L2_CACHE_HIT_STALL_TIME == cycle) {
+        l1_cache_end_stall(cache, 1, cycle);
+    }
 }
 
 
@@ -304,10 +302,10 @@ void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_
         if (mshr->done) {
             // check the origin
             if (mshr->type == ICACHE) {
-                l1_cache_end_stall(icache, 1);
+                l1_cache_end_stall(icache, 1, mem_con->cycle);
             }
             if (mshr->type == DCACHE) {
-                l1_cache_end_stall(dcache, 1);
+                l1_cache_end_stall(dcache, 1, mem_con->cycle);
             }
 
             clear_mshr(mshr);
@@ -321,6 +319,7 @@ void cache_flush(cache_t* cache) {
 
     // if the cache is currently fetching something from memory then we cancle that action
     if (cache->is_stall) {
+
         // identify the current address being fetched and invalidate it
         uint32_t tag = cache->current_address >> cache->tag_shift;
         uint32_t set_index = (cache->current_address >> cache->set_index_shift) & cache->set_index_off;
@@ -336,9 +335,8 @@ void cache_flush(cache_t* cache) {
                 break;
             }
         }
+        l1_cache_end_stall(cache, 0, 0);
     }
-    cache->is_stall = 0;
-    cache->valid = 0;
 }
 
 
