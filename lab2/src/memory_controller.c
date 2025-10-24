@@ -64,6 +64,7 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
     mem_con->banks = (dram_bank_t*)calloc(1, n_banks*sizeof(dram_bank_t));
     for (int i = 0; i < n_banks; ++i) {
         mem_con->banks[i].res_buf = res_buf_init(400);
+        mem_con->banks[i].res_buf->index = i + 2;
         // fprintf(stderr, "%i\n", mem_con->banks[i].res_buf->size);
     }
 
@@ -78,6 +79,8 @@ mem_con_t* mem_con_init(size_t n_banks, size_t n_rows, size_t row_size, size_t q
     // create resource buffers for command/address and data bus
     mem_con->cmd_bus_buffer = res_buf_init(400); // we will never look more then 400 cycles into the future as our longest timespan is 4 + 100 + 4 + 100 + 4 + 100 + 50 = 362 cycles
     mem_con->data_bus_buffer = res_buf_init(400);
+    mem_con->cmd_bus_buffer->index = 0;
+    mem_con->data_bus_buffer->index = 1;
 
     // init MSHR
     for (int i = 0; i < L2_CACHE_NUM_MSHR; ++i) {
@@ -117,24 +120,24 @@ void mem_con_destroy(mem_con_t* mem_con) {
 static void res_buf_update(res_buf_t* res_buf, uint64_t cycle) {
     if (res_buf->cycle_0 == cycle)
         return;
-    
-    // calculate the buffer shift
-    int shift = cycle - res_buf->cycle_0;
 
-    // we shift the buffer iteratively
-    for (int i = 0; i < res_buf->size - shift; ++i) {
-        // fprintf(stderr, "%i\n", i+shift);
-        if (i+shift >= res_buf->size)
-            break;
-        res_buf->use[i] = res_buf->use[i+shift];
+    uint64_t shift = cycle - res_buf->cycle_0;
+
+    // if the shift exceeds buffer size, just clear everything
+    if (shift >= res_buf->size) {
+        memset(res_buf->use, 0, res_buf->size);
+        res_buf->cycle_0 = cycle;
+        return;
     }
 
-    // zero the the remaining bits
-    for (int i = res_buf->size - shift < 0 ? 0 : res_buf->size - shift; i < res_buf->size; ++i) {
+    // shift valid region left
+    for (uint64_t i = 0; i < res_buf->size - shift; ++i)
+        res_buf->use[i] = res_buf->use[i + shift];
+
+    // clear the tail region that just opened up
+    for (uint64_t i = res_buf->size - shift; i < res_buf->size; ++i)
         res_buf->use[i] = 0;
-    }
 
-    // update the cycle_0 
     res_buf->cycle_0 = cycle;
 }
 
@@ -156,12 +159,22 @@ static int8_t res_buf_check(res_buf_t* res_buf, uint64_t start, uint64_t end) {
 
 
 // function to write a block to the resource buffer in span [start, end) (0 is the current cycle -> res_buf_update should always be called at least once efore this function per cycle)
-static void res_buf_write(res_buf_t* res_buf, uint64_t start, uint64_t end) {
+static void res_buf_write(res_buf_t* res_buf, uint64_t start, uint64_t end, int32_t index) {
     
     // iterate over the interval and fill the buffer
     for (int i = start; i < end; ++i) {
         res_buf->use[i] = 1;
     }
+}
+
+
+// function print resource buffer
+void res_buf_print(FILE* file, res_buf_t* res_buf) {
+    fprintf(file, "\nPrinting Resource Buffer\n");
+    for (int i = 0; i < res_buf->size; ++i) {
+        fprintf(file, "%lu:[%i]\t", i + res_buf->cycle_0 - 1, res_buf->use[i]);
+    }
+    fprintf(file, "\n");
 }
 
 
@@ -184,11 +197,19 @@ static row_buffer_state_e get_row_buffer_state(mem_con_t* mem_con, mem_req_t* me
 
     dram_bank_t* banks = mem_con->banks;
 
-    if (!banks[bank_idx].row_open)
+    if (!banks[bank_idx].row_open) {
+        fprintf(stderr, "\nissued: ROW_BUFFER_MISS\n");
+        fprintf(stderr, "in bank: %i\t and row %i\n", bank_idx, row_idx);
         return ROW_BUFFER_MISS;
+    }
 
-    if (banks[bank_idx].open_row_idx == row_idx)
+    if (banks[bank_idx].open_row_idx == row_idx) {
+        fprintf(stderr, "issued: ROW_BUFFER_HIT\n");
+        fprintf(stderr, "in bank: %i\t and row %i\n", bank_idx, row_idx);
         return ROW_BUFFER_HIT;
+    }
+    fprintf(stderr, "issued: ROW_BUFFER_CONFLICT\n");
+    fprintf(stderr, "in bank: %i\t and row %i\n", bank_idx, row_idx);
     return ROW_BUFFER_CONFLICT;
 }
 
@@ -239,94 +260,6 @@ static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
     res_buf_update(data_buf, cycle_0);
     res_buf_update(bank_buf, cycle_0);
 
-#ifndef OVERLAP_CMD_AND_BANK
-
-    switch (state) {
-        case ROW_BUFFER_HIT: // READ/WRITE
-            // we only run a READ/WRITE
-            rw_cmd_access_start = 0;
-            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
-            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
-
-            // check the resource buffers
-            if (res_buf_check(cmd_buf, rw_cmd_access_start, rw_bank_access_start))
-                return 0;
-            if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
-                return 0;
-            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end))
-                return 0;
-            break;
-
-        case ROW_BUFFER_MISS: // ACTIVATE, READ/WRITE
-            // we have to check both the ACTIVATE and the READ/WRITE
-            // ACTIVATE:
-            a_cmd_access_start = 0;
-            a_bank_access_start = a_cmd_access_start + DRAM_CMD_CYCLES;
-            // READ/WRITE:
-            rw_cmd_access_start = a_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
-            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
-
-            // check the resource buffers
-            // ACTIVATE:
-            if (res_buf_check(cmd_buf, a_cmd_access_start, a_bank_access_start))
-                return 0;
-            if (res_buf_check(bank_buf, a_bank_access_start, rw_cmd_access_start))
-                return 0;
-            // READ/WRITE
-            if (res_buf_check(cmd_buf, rw_cmd_access_start, rw_bank_access_start))
-                return 0;
-            if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
-                return 0;
-            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end));
-            break;
-
-        case ROW_BUFFER_CONFLICT: // PRECHARGE, ACTIVATE, READ/WRITE
-            // we have to check the PRECHARGE, the ACTIVATE, and the READ/WRITE
-            // PRECHARGE:
-            p_cmd_access_start = 0;
-            p_bank_access_start = p_cmd_access_start + DRAM_CMD_CYCLES;
-            // ACTIVATE:
-            a_cmd_access_start = p_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            a_bank_access_start = a_cmd_access_start + DRAM_CMD_CYCLES;
-            // READ/WRITE:
-            rw_cmd_access_start = a_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
-            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
-
-            // check the resource buffers
-            // PRECHARGE:
-            if (res_buf_check(cmd_buf, p_cmd_access_start, p_bank_access_start))
-                return 0;
-            if (res_buf_check(bank_buf, p_bank_access_start, a_cmd_access_start))
-                return 0;
-            // ACTIVATE:
-            if (res_buf_check(cmd_buf, a_cmd_access_start, a_bank_access_start))
-                return 0;
-            if (res_buf_check(bank_buf, a_bank_access_start, rw_cmd_access_start))
-                return 0;
-            // READ/WRITE:
-            if (res_buf_check(cmd_buf, rw_cmd_access_start, rw_bank_access_start))
-                return 0;
-            if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
-                return 0;
-            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end));
-            break;
-
-        default:
-            fprintf(stderr, "[mem_con]error: invalid row buffer state!\n");
-            fprintf(stderr, "The state %i is not recognized.\n", state);
-            fprintf(stderr, "Error occured at: memory_controller.c/is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req)\n");
-            exit(1);
-    }
-
-#endif // OVERLAP_CMD_AND_BANK
-    
-#ifdef OVERLAP_CMD_AND_BANK
-
     switch (state) {
         case ROW_BUFFER_HIT: // READ/WRITE
             // we only run a READ/WRITE
@@ -366,7 +299,8 @@ static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
                 return 0;
             if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
                 return 0;
-            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end));
+            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end))
+                return 0;
             break;
 
         case ROW_BUFFER_CONFLICT: // PRECHARGE, ACTIVATE, READ/WRITE
@@ -399,7 +333,8 @@ static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
                 return 0;
             if (res_buf_check(bank_buf, rw_bank_access_start, rw_data_access_start))
                 return 0;
-            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end));
+            if (res_buf_check(data_buf, rw_data_access_start, rw_data_access_end))
+                return 0;
             break;
 
         default:
@@ -408,8 +343,6 @@ static int8_t is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req) {
             fprintf(stderr, "Error occured at: memory_controller.c/is_schedulable(mem_con_t* mem_con, mem_req_t* mem_req)\n");
             exit(1);
     }
-
-#endif // OVERLAP_CMD_AND_BANK
     return 1;
 }
 
@@ -443,88 +376,6 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
     res_buf_update(data_buf, cycle_0);
     res_buf_update(bank_buf, cycle_0);
 
-#ifndef OVERLAP_CMD_AND_BANK
-
-    switch (state) {
-        case ROW_BUFFER_HIT: // READ/WRITE
-            // we issue a READ/WRITE command
-            rw_cmd_access_start = 0;
-            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
-            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
-
-            // indicate the used cycles in the buffers
-            res_buf_write(cmd_buf, rw_cmd_access_start, rw_data_access_end);
-            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start);
-            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end);
-            break;
-
-        case ROW_BUFFER_MISS: // ACTIVATE, READ/WRITE
-            // update the bank state
-            bank->row_open = 1;
-            bank->open_row_idx = row;
-
-            // we issue a an ACTIVATE and a READ/WRITE command
-            // ACTIVATE:
-            a_cmd_access_start = 0;
-            a_bank_access_start = a_cmd_access_start + DRAM_CMD_CYCLES;
-            // READ/WRITE:
-            rw_cmd_access_start = a_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
-            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
-
-            // indicate the used cycles in the buffers
-            // ACTIVATE:
-            res_buf_write(cmd_buf, a_cmd_access_start, a_bank_access_start);
-            res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start);
-            // READ/WRITE
-            res_buf_write(cmd_buf, rw_cmd_access_start, rw_bank_access_start);
-            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start);
-            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end);
-            break;
-
-        case ROW_BUFFER_CONFLICT:
-            // update the bank state
-            bank->row_open = 1;
-            bank->open_row_idx = row;
-
-            // we issue a PRECHARGE, an ACTIVATE, and a READ/WRITE command
-            // PRECHARGE:
-            p_cmd_access_start = 0;
-            p_bank_access_start = p_cmd_access_start + DRAM_CMD_CYCLES;
-            // ACTIVATE:
-            a_cmd_access_start = p_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            a_bank_access_start = a_cmd_access_start + DRAM_CMD_CYCLES;
-            // READ/WRITE:
-            rw_cmd_access_start = a_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_bank_access_start = rw_cmd_access_start + DRAM_CMD_CYCLES;
-            rw_data_access_start = rw_bank_access_start + DRAM_BANK_BUSY_CYCLES;
-            rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
-
-            // indicate the used cycles in the buffers
-            // PRECHARGE:
-            res_buf_write(cmd_buf, p_cmd_access_start, p_bank_access_start);
-            res_buf_write(bank_buf, p_bank_access_start, rw_cmd_access_start);
-            // ACTIVATE:
-            res_buf_write(cmd_buf, a_cmd_access_start, a_bank_access_start);
-            res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start);
-            // READ/WRITE
-            res_buf_write(cmd_buf, rw_cmd_access_start, rw_bank_access_start);
-            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start);
-            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end);
-            break;
-
-        default:
-            fprintf(stderr, "[mem_con]error: invalid row buffer state!\n");
-            fprintf(stderr, "The state %i is not recognized.\n", state);
-            fprintf(stderr, "Error occured at: memory_controller.c/issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req)\n");
-            exit(1);
-    }
-
-#endif // OVERLAP_CMD_AND_BANK
-
-#ifdef OVERLAP_CMD_AND_BANK
     switch (state) {
         case ROW_BUFFER_HIT: // READ/WRITE
             // we issue a READ/WRITE command
@@ -534,16 +385,12 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
             rw_data_access_end = rw_data_access_start + DRAM_DATA_CYCLES;
 
             // indicate the used cycles in the buffers
-            res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES);
-            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start);
-            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end);
+            res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES, 0);
+            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start, 2 + get_bank_idx(mem_req->address));
+            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end, 1);
             break;
 
         case ROW_BUFFER_MISS: // ACTIVATE, READ/WRITE
-            // update the bank state
-            bank->row_open = 1;
-            bank->open_row_idx = row;
-
             // we issue a an ACTIVATE and a READ/WRITE command
             // ACTIVATE:
             a_cmd_access_start = 0;
@@ -556,19 +403,15 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
 
             // indicate the used cycles in the buffers
             // ACTIVATE:
-            res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES - 1);
-            res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start);
+            res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES - 1, 0);
+            res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start, 2 + get_bank_idx(mem_req->address));
             // READ/WRITE
-            res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES);
-            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start);
-            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end);
+            res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES, 0);
+            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start, 2 + get_bank_idx(mem_req->address));
+            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end, 1);
             break;
 
         case ROW_BUFFER_CONFLICT:
-            // update the bank state
-            bank->row_open = 1;
-            bank->open_row_idx = row;
-
             // we issue a PRECHARGE, an ACTIVATE, and a READ/WRITE command
             // PRECHARGE:
             p_cmd_access_start = 0;
@@ -584,15 +427,15 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
 
             // indicate the used cycles in the buffers
             // PRECHARGE:
-            res_buf_write(cmd_buf, p_cmd_access_start, p_cmd_access_start + DRAM_CMD_CYCLES - 1);
-            res_buf_write(bank_buf, p_bank_access_start, rw_cmd_access_start);
+            res_buf_write(cmd_buf, p_cmd_access_start, p_cmd_access_start + DRAM_CMD_CYCLES - 1, 0);
+            res_buf_write(bank_buf, p_bank_access_start, rw_cmd_access_start, 2 + get_bank_idx(mem_req->address));
             // ACTIVATE:
-            res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES);
-            res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start);
+            res_buf_write(cmd_buf, a_cmd_access_start, a_cmd_access_start + DRAM_CMD_CYCLES, 0);
+            res_buf_write(bank_buf, a_bank_access_start, rw_cmd_access_start, 2 + get_bank_idx(mem_req->address));
             // READ/WRITE
-            res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES);
-            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start);
-            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end);
+            res_buf_write(cmd_buf, rw_cmd_access_start, rw_cmd_access_start + DRAM_CMD_CYCLES, 0);
+            res_buf_write(bank_buf, rw_bank_access_start, rw_data_access_start, 2 + get_bank_idx(mem_req->address));
+            res_buf_write(data_buf, rw_data_access_start, rw_data_access_end, 1);
             break;
 
         default:
@@ -601,9 +444,12 @@ static void issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req) {
             fprintf(stderr, "Error occured at: memory_controller.c/issue_mem_req(mem_con_t* mem_con, mem_req_t* mem_req)\n");
             exit(1);
     }
-#endif // OVERLAP_CMD_AND_BANK
+
+    // update the bank status
+    bank->row_open = 1;
+    bank->open_row_idx = row;
     
-    mem_req->mshr->ready_cycle = cycle_0 + rw_data_access_end + L2_CACHE_MEMORY_DELAY; // set data ready cycle
+    mem_req->mshr->ready_cycle = cycle_0 + rw_data_access_end + L2_CACHE_MEMORY_DELAY + 1; // set data ready cycle
     mem_req->valid = 0; // invalidate the memory request as it has been processed
     mem_con->queue_size--; // downsize the queue
 }
@@ -714,7 +560,7 @@ void mshr_print(FILE* file, mshr_t* mshr) {
 
     // scan the memory request queue
     int8_t req_found = 0; // indicator to indicate if we found a request
-    mem_req_t* mem_req;
+    mem_req_t* mem_req = NULL;
 
     // iterate over all entries of the queue
     for (int i = 0; i < mem_con->queue_alloc; ++i) {

@@ -104,7 +104,7 @@ void pipe_cycle()
             pipe.wb_op = NULL;
         }
 
-        cache_flush(pipe.icache);
+        // cache_flush(pipe.icache);
 
         pipe.branch_recover = 0;
         pipe.branch_dest = 0;

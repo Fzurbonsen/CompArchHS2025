@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <assert.h>
+#include <string.h>
 
 // enum to identify the cache type
 typedef enum {
@@ -65,6 +67,7 @@ typedef struct {
     uint64_t cycle_0; // holds the cycle at the 0 position of the buffer
     int8_t* use; // use[n] tells whether a resource is used at cycle cycle_0+n
     size_t size; // n of predicted cycles
+    int32_t index;
 } res_buf_t;
 /*
  * Resource Buffer:
