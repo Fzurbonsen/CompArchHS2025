@@ -320,8 +320,6 @@ void cache_flush(cache_t* cache) {
     // if the cache is currently fetching something from memory then we cancel that action
     if (cache->is_stall) {
 
-        fprintf(stderr, "flushing\n");
-
         // identify the current address being fetched and invalidate it
         uint32_t tag = cache->current_address >> cache->tag_shift;
         uint32_t set_index = (cache->current_address >> cache->set_index_shift) & cache->set_index_off;
