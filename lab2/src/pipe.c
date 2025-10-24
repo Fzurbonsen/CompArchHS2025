@@ -96,7 +96,7 @@ void pipe_cycle()
         if (pipe.branch_flush >= 4) {
             if (pipe.mem_op) free(pipe.mem_op);
             pipe.mem_op = NULL;
-            // cache_flush(pipe.dcache);
+            cache_flush(pipe.dcache);
         }
 
         if (pipe.branch_flush >= 5) {
@@ -104,7 +104,7 @@ void pipe_cycle()
             pipe.wb_op = NULL;
         }
 
-        // cache_flush(pipe.icache);
+        cache_flush(pipe.icache);
 
         pipe.branch_recover = 0;
         pipe.branch_dest = 0;

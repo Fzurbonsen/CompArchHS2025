@@ -198,18 +198,12 @@ static row_buffer_state_e get_row_buffer_state(mem_con_t* mem_con, mem_req_t* me
     dram_bank_t* banks = mem_con->banks;
 
     if (!banks[bank_idx].row_open) {
-        fprintf(stderr, "\nissued: ROW_BUFFER_MISS\n");
-        fprintf(stderr, "in bank: %i\t and row %i\n", bank_idx, row_idx);
         return ROW_BUFFER_MISS;
     }
 
     if (banks[bank_idx].open_row_idx == row_idx) {
-        fprintf(stderr, "issued: ROW_BUFFER_HIT\n");
-        fprintf(stderr, "in bank: %i\t and row %i\n", bank_idx, row_idx);
         return ROW_BUFFER_HIT;
     }
-    fprintf(stderr, "issued: ROW_BUFFER_CONFLICT\n");
-    fprintf(stderr, "in bank: %i\t and row %i\n", bank_idx, row_idx);
     return ROW_BUFFER_CONFLICT;
 }
 

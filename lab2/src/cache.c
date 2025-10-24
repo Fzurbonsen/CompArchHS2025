@@ -317,8 +317,10 @@ void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_
 // function to handle pipeline flushes
 void cache_flush(cache_t* cache) {
 
-    // if the cache is currently fetching something from memory then we cancle that action
+    // if the cache is currently fetching something from memory then we cancel that action
     if (cache->is_stall) {
+
+        fprintf(stderr, "flushing\n");
 
         // identify the current address being fetched and invalidate it
         uint32_t tag = cache->current_address >> cache->tag_shift;
