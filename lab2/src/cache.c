@@ -165,7 +165,7 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
     }
 
     // if we have a cache miss we need to allocate a MSHR
-    uint32_t block_address = in >> L2_CACHE_BLOCK_OFFSET; // we look at the least significant bits od the address up to L2_CACHE_BLOCK_OFFSET
+    uint32_t block_address = in >> L2_CACHE_BLOCK_OFFSET << L2_CACHE_BLOCK_OFFSET; // we look at the least significant bits od the address up to L2_CACHE_BLOCK_OFFSET
     int32_t mshr_idx = alloc_mshr(l2_mshr, block_address, mem_con->cycle, l1_cache->type);
     if (mshr_idx < 0) {
         // handle if we do not find a free MSHR this should not happen with our current setup
