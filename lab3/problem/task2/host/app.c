@@ -157,6 +157,7 @@ int main(int argc, char **argv) {
         DPU_ASSERT(dpu_push_xfer(dpu_set,
                                 DPU_XFER_TO_DPU,
                                 DPU_MRAM_HEAP_POINTER_NAME,
+                                input_size_dpu_8bytes * sizeof(T),
                                 input_size_dpu_8bytes * sizeof(T), // we need an offset to place it behind the X section
                                 DPU_XFER_DEFAULT));
 
@@ -229,7 +230,7 @@ int main(int argc, char **argv) {
         // prepare the buffers to recieve Y from the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
-            // DPU_ASSERT(dpu_log_read(dpu, stderr));
+            DPU_ASSERT(dpu_log_read(dpu, stderr));
             DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
         }
         // push the buffers to the DPUs
@@ -245,7 +246,7 @@ int main(int argc, char **argv) {
         // prepare the buffers to recieve Y from the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
-            // DPU_ASSERT(dpu_log_read(dpu, stderr));
+            DPU_ASSERT(dpu_log_read(dpu, stderr));
             DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
         }
         // push the buffers to the DPUs
