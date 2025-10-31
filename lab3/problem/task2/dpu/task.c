@@ -17,7 +17,6 @@
 __host dpu_arguments_t DPU_INPUT_ARGUMENTS;
 __host dpu_results_t DPU_RESULTS[NR_TASKLETS];
 
-
 // Barrier
 BARRIER_INIT(my_barrier, NR_TASKLETS);
 
@@ -69,8 +68,16 @@ int main_kernel1() {
     uint32_t mram_base_addr_Y = (uint32_t)(DPU_MRAM_HEAP_POINTER + input_size_dpu_bytes_transfer);
 
     // Initialize a local cache in WRAM to store the MRAM block
-    T* wram_x = mem_alloc(BLOCK_SIZE);
-    T* wram_y = mem_alloc(BLOCK_SIZE);
+    T* wram_x = (T*)(((uintptr_t)mem_alloc(BLOCK_SIZE + 8) + 7) & ~0x7); // force 8-bit alignment
+    T* wram_y = (T*)(((uintptr_t)mem_alloc(BLOCK_SIZE + 8) + 7) & ~0x7);
+    if (!wram_x || !wram_y) {
+        printf("error: mem_alloc failed\n");
+        exit(1);
+    }
+    if (((uint32_t)wram_x % 8) != 0 || ((uint32_t)wram_y % 8) != 0) {
+        printf("error: WRAM buffer not 8-byte aligned\n");
+        exit(1);
+    }
 
     for(unsigned int byte_index = base_tasklet; byte_index < input_size_dpu_bytes; byte_index += BLOCK_SIZE * NR_TASKLETS){
 
@@ -90,12 +97,12 @@ int main_kernel1() {
          * - The size of the transfer must be a multiple of 8, at least equal 
          *   to 8 and not greater then 2048.
         */ 
-        if (!(mem_access_size % 8 == 0) &&
-            !(mem_access_size >= 8) &&
+        if (!(mem_access_size % 8 == 0) ||
+            !(mem_access_size >= 8) ||
             !(mem_access_size <= 2048)) {
             printf("error: memory access size violation!\n");
             printf("\tmem_access_size %i does not fulfill the conditions:\n", mem_access_size);
-            prinft("\tThe size of the transfer must be a multiple of 8, at least equal to 8 and not greater then 2048.");
+            printf("\tThe size of the transfer must be a multiple of 8, at least equal to 8 and not greater then 2048.");
             exit(1);
         }
         // check if mem_access_size is a multiple of T

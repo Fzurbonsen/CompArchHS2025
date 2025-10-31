@@ -230,7 +230,7 @@ int main(int argc, char **argv) {
         // prepare the buffers to recieve Y from the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
-            DPU_ASSERT(dpu_log_read(dpu, stderr));
+            // DPU_ASSERT(dpu_log_read(dpu, stderr));
             DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
         }
         // push the buffers to the DPUs
@@ -246,7 +246,7 @@ int main(int argc, char **argv) {
         // prepare the buffers to recieve Y from the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
-            DPU_ASSERT(dpu_log_read(dpu, stderr));
+            // DPU_ASSERT(dpu_log_read(dpu, stderr));
             DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
         }
         // push the buffers to the DPUs
