@@ -79,18 +79,35 @@ int main_kernel1() {
         // initialize local variables
         __mram_ptr T* x_ptr = (__mram_ptr T*)(wram_x + byte_index);
         __mram_ptr T* y_ptr = (__mram_ptr T*)(wram_y + byte_index);
+        uint32_t mem_access_size = BLOCK_SIZE;
 
         // Bound checking
         // printf("byte_index: %i\n", byte_index);
         if (byte_index + BLOCK_SIZE * NR_TASKLETS > input_size_dpu_bytes) {
-
+            mem_access_size = input_size_dpu_bytes - byte_index;
+        }
+        /* - The source of target address in WRAM must be aligned on 8 bytes.
+         * - The source or target address in MRAM must be aligned on 8 bytes.
+         *   Developers must carefully respect this rule since the Runtime Library
+         *   does not perform any check regarding this point.
+         * - The size of the transfer must be a multiple of 8, at least equal 
+         *   to 8 and not greater then 2048.
+        */ 
+        if (!(mem_access_size % 8 == 0) &&
+            !(mem_access_size >= 8) &&
+            !(mem_access_size <= 2048)) {
+            printf("error: memory access size violation!\n");
+            printf("mem_access_size %i does not fulfill the conditions:\n", mem_access_size);
+            prinft("The size of the transfer must be a multiple of 8, at least equal to 8 and not greater then 2048.");
         }
 
-        // Load cache with current MRAM block
-        //@@ INSERT MRAM-WRAM TRANSFERS HERE
+
+        // // Load cache with current MRAM block
+        // mram_read(x_ptr, wram_x, mem_access_size);
+        // mram_read(y_ptr, wram_y, mem_access_size);
 
         // Computer vector addition
-        //@@ INSERT CALL TO AXPY FUNCTION HERE
+        
 
         // Write cache to current MRAM block
         //@@ INSERT WRAM-MRAM TRANSFER HERE

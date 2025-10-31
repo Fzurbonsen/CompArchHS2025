@@ -40,7 +40,7 @@ static void read_input(T* A, T* B, unsigned int nr_elements) {
 // Compute output in the host for verification purposes
 static void axpy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
     for (unsigned int i = 0; i < nr_elements; i++) {
-        // B[i] = alpha * A[i] + B[i];
+        B[i] = alpha * A[i] + B[i];
     }
 }
 
