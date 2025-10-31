@@ -67,12 +67,24 @@ int main_kernel1() {
     uint32_t mram_base_addr_Y = (uint32_t)(DPU_MRAM_HEAP_POINTER + input_size_dpu_bytes_transfer);
 
     // Initialize a local cache in WRAM to store the MRAM block
-    //@@ INSERT WRAM ALLOCATION HERE
+    T* wram_x = mem_alloc(BLOCK_SIZE);
+    T* wram_y = mem_alloc(BLOCK_SIZE);
 	
+    // printf("\ninput_size_dpu_bytes %i\nBLOCK_SIZE: %i\nBLOCK_SIZE  * NR_TASKLETS: %i\n",input_size_dpu_bytes,
+    //                                                                                             BLOCK_SIZE,
+    //                                                                                             BLOCK_SIZE * NR_TASKLETS);
+
     for(unsigned int byte_index = base_tasklet; byte_index < input_size_dpu_bytes; byte_index += BLOCK_SIZE * NR_TASKLETS){
 
+        // initialize local variables
+        __mram_ptr T* x_ptr = (__mram_ptr T*)(wram_x + byte_index);
+        __mram_ptr T* y_ptr = (__mram_ptr T*)(wram_y + byte_index);
+
         // Bound checking
-        //@@ INSERT BOUND CHECKING HERE
+        // printf("byte_index: %i\n", byte_index);
+        if (byte_index + BLOCK_SIZE * NR_TASKLETS > input_size_dpu_bytes) {
+
+        }
 
         // Load cache with current MRAM block
         //@@ INSERT MRAM-WRAM TRANSFERS HERE
