@@ -14,6 +14,8 @@ lab3/problem/task1/bin
 lab3/problem/task2/bin/*
 lab3/problem/task2/bin
 lab3/*.png
+lab3/problem/task3/bin
+lab3/problem/task3/bin/*
 
 *slurm*
 *.vscode

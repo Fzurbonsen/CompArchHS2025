@@ -8,6 +8,8 @@ TYPE ?= INT32
 TRANSFER ?= PARALLEL
 PRINT ?= 0
 PERF ?= NO
+OPERATION ?= AXPY
+
 
 define conf_filename
 	${BUILDDIR}/.NR_DPUS_$(1)_NR_TASKLETS_$(2)_BLOCK_$(3)_TYPE_$(4)_TRANSFER_$(5)_PRINT_$(6)_PERF_$(7).conf

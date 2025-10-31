@@ -44,6 +44,31 @@ static void axpy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
     }
 }
 
+// Compute output in the host for verification purposes
+static void axminy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
+    for (unsigned int i = 0; i < nr_elements; i++) {
+        B[i] = alpha * A[i] - B[i];
+    }
+}
+
+// Compute output in the host for verification purposes
+static void axmuly_host(T* A, T* B, T alpha, unsigned int nr_elements) {
+    for (unsigned int i = 0; i < nr_elements; i++) {
+        B[i] = alpha * A[i] * B[i];
+    }
+}
+
+// Compute output in the host for verification purposes
+static void axdivy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
+    for (unsigned int i = 0; i < nr_elements; i++) {
+#if defined(FLOAT) || defined(DOUBLE)
+        B[i] = (T)(alpha * A[i] / B[i]);
+#else
+        B[i] = (B[i] != 0) ? (T)(alpha * A[i] / B[i]) : (T)0;
+#endif
+    }
+}
+
 // Main of the Host Application
 int main(int argc, char **argv) {
 
@@ -95,7 +120,15 @@ int main(int argc, char **argv) {
         // Compute output on CPU (verification purposes)
         if(rep >= p.n_warmup)
             start(&timer, 0, rep - p.n_warmup);
+#if defined(AXPY)
         axpy_host(X, Y_host, alpha, input_size);
+#elif defined(AXMINY)
+        axminy_host(X, Y_host, alpha, input_size);
+#elif defined(AXMULY)
+        axmuly_host(X, Y_host, alpha, input_size);
+#elif defined(AXDIVY)
+        axdivy_host(X, Y_host, alpha, input_size);
+#endif
         if(rep >= p.n_warmup)
             stop(&timer, 0);
 
