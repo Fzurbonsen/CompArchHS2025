@@ -10,6 +10,7 @@ lab2/basesim*
 lab2/sim
 
 lab3/problem/task1/bin/*
+lab3/problem/task1/bin
 lab3/problem/task2/bin/*
 lab3/problem/task2/bin
 lab3/*.png
