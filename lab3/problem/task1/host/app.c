@@ -78,18 +78,29 @@ int main(int argc, char **argv) {
         if(rep >= p.n_warmup)
             start(&timer, 1, rep - p.n_warmup); // Start timer (CPU-DPU transfers)
         i = 0;
+
+        // prepare the buffers
+        DPU_FOREACH(dpu_set, dpu) {
+            DPU_ASSERT(dpu_prepare_xfer(dpu, bufferX));
+        }
+
         // Copy input arrays
 #ifdef SERIAL // Serial transfers
 
-        //@@ INSERT SERIAL CPU-DPU TRANSFER HERE (i.e., copy bufferX to DPU MRAM)
+        // serially push the prepared buffers to the DPUs
+        DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0, input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
         
 #elif BROADCAST // Broadcast transfers
 
-        //@@ INSERT BROADCAST CPU-DPU TRANSFER HERE (i.e., copy bufferX to DPU MRAM)
+        // broadcast the prepared xfers to the DPUs
+        DPU_ASSERT(dpu_broadcast_to(dpu_set, DPU_MRAM_HEAP_POINTER_NAME, 0, bufferX, input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 
 #else // Parallel transfers
 
-        //@@ INSERT PARALLEL CPU-DPU TRANSFER HERE (i.e., copy bufferX to DPU MRAM)
+        // push the buffers to the DPUs asynchronously
+        DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_TO_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0, input_size_dpu_8bytes * sizeof(T), DPU_XFER_ASYNC));
+        // synchronize the DPUs by waiting
+        DPU_ASSERT(dpu_sync(dpu_set));
 
 #endif
         if(rep >= p.n_warmup)
@@ -112,11 +123,15 @@ int main(int argc, char **argv) {
         // Copy output array
 #ifdef SERIAL // Serial transfers
 
-        //@@ INSERT SERIAL DPU-CPU TRANSFER HERE
+        // get the buffers back from the DPUs serially
+        DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0, input_size_dpu_8bytes * sizeof(T), DPU_XFER_DEFAULT));
 
 #else // Parallel transfers
 
-        //@@ INSERT PARALLEL DPU-CPU TRANSFER HERE
+        // get the buffers back from the DPUs asynchroniously
+        DPU_ASSERT(dpu_push_xfer(dpu_set, DPU_XFER_FROM_DPU, DPU_MRAM_HEAP_POINTER_NAME, 0, input_size_dpu_8bytes * sizeof(T), DPU_XFER_ASYNC));
+        // synchronize by waiting
+        DPU_ASSERT(dpu_sync(dpu_set));
 
 #endif
         if(rep >= p.n_warmup)
