@@ -8,7 +8,7 @@
 import subprocess
 
 # function to compile and run an instance
-def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variable_type):
+def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variable_type, op):
 
     # make clean
     process_make_clean = subprocess.Popen(
@@ -23,7 +23,7 @@ def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variab
 
     # compile
     process_compile = subprocess.Popen(
-        ["make", f"NR_DPUS={nr_dpus}", f"NR_TASKLETS={nr_tasklets}", f"TRANSFER={transfer}", f"PRINT={do_print}", f"TYPE={variable_type}"],
+        ["make", f"NR_DPUS={nr_dpus}", f"NR_TASKLETS={nr_tasklets}", f"TRANSFER={transfer}", f"PRINT={do_print}", f"TYPE={variable_type}", f"OPERATON={op}"],
         stdin=subprocess.PIPE, 
         stdout=subprocess.PIPE, 
         stderr=subprocess.PIPE,
@@ -52,8 +52,8 @@ def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variab
 
     # handle errors
     if stderr:
-        print(f"error: nr_dpus={nr_dpus}, nr_tasklets={nr_tasklets}, transfer_type={transfer}, input_size={input_size}, variable_type={variable_type}")
-        print(f"make clean && make NR_DUPS={nr_dpus} NR_TASKLETS={nr_tasklets} TRANSFER={transfer} TYPE={variable_type} && ./bin/host_code -i {input_size}")
+        print(f"error: nr_dpus={nr_dpus}, nr_tasklets={nr_tasklets}, transfer_type={transfer}, input_size={input_size}, variable_type={variable_type}, operation={op}")
+        print(f"make clean && make NR_DUPS={nr_dpus} NR_TASKLETS={nr_tasklets} TRANSFER={transfer} TYPE={variable_type} OPERATION={op} && ./bin/host_code -i {input_size}")
         print(stderr)
         exit(1)
     
@@ -61,19 +61,22 @@ def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variab
 
 def main():
     nr_dpus = [16]
-    nr_tasklets = [i for i in range(1, 5)]
+    nr_tasklets = [i for i in range(1, 2)]
     # transfer_types = ["PARALLEL", "SERIAL"]
     transfer_types = ["PARALLEL"]
     input_sizes = [8 * 131072]
-    # variable_types = ["INT32", "INT64", "FLOAT", "DOUBLE", "CHAR", "SHORT"]
-    variable_types = ["INT32"]
+    variable_types = ["INT32", "INT64", "FLOAT", "DOUBLE", "CHAR", "SHORT"]
+    # variable_types = ["INT32"]
+    ops = ["AXPY", "AXMINY", "AXMULY", "AXDIVY"]
     
-    for transfer_type in transfer_types:
-        for nr_dpu in nr_dpus:
-            for variable_type in variable_types:
-                for nr_tasklet in nr_tasklets:
-                    for input_size in input_sizes:
-                        compile_and_run(nr_dpu, nr_tasklet, transfer_type, 0, input_size, variable_type)
+    for op in ops:
+        print(f"op: {op}")
+        for transfer_type in transfer_types:
+            for nr_dpu in nr_dpus:
+                for variable_type in variable_types:
+                    for nr_tasklet in nr_tasklets:
+                        for input_size in input_sizes:
+                            compile_and_run(nr_dpu, nr_tasklet, transfer_type, 0, input_size, variable_type, op)
 
     print("tests complete!")
 
