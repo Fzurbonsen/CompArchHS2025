@@ -1,6 +1,9 @@
 #ifndef _COMMON_H_
 #define _COMMON_H_
 
+// #define CYCLES
+#define INSTRUCTIONS
+
 // Transfer size between MRAM and WRAM
 #ifdef BLOCK
 #define BLOCK_SIZE_LOG2 BLOCK

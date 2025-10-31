@@ -44,7 +44,7 @@ int main_kernel1() {
         mem_reset(); // Reset the heap
 #ifdef CYCLES
         perfcounter_config(COUNT_CYCLES, true); // Initialize once the cycle counter
-#elif INSTRUCTIONS
+#elif defined(INSTRUCTIONS)
         perfcounter_config(COUNT_INSTRUCTIONS, true); // Initialize once the instruction counter
 #endif
     }

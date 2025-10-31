@@ -300,7 +300,7 @@ int main(int argc, char **argv) {
     }
 #ifdef CYCLES
     printf("DPU cycles  = %g\n", cc / p.n_reps);
-#elif INSTRUCTIONS
+#elif defined(INSTRUCTIONS)
     printf("DPU instructions  = %g\n", cc / p.n_reps);
 #endif
 	
