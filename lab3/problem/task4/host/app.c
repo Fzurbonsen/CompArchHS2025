@@ -120,15 +120,13 @@ int main(int argc, char **argv) {
         // Compute output on CPU (verification purposes)
         if(rep >= p.n_warmup)
             start(&timer, 0, rep - p.n_warmup);
-#if defined(AXPY)
-        axpy_host(X, Y_host, alpha, input_size);
-#elif defined(AXMINY)
-        axminy_host(X, Y_host, alpha, input_size);
-#elif defined(AXMULY)
-        axmuly_host(X, Y_host, alpha, input_size);
-#elif defined(AXDIVY)
-        axdivy_host(X, Y_host, alpha, input_size);
-#endif
+
+
+
+        // ToDo: add tests
+
+
+
         if(rep >= p.n_warmup)
             stop(&timer, 0);
 

@@ -89,6 +89,9 @@ def plot_instruction_count(data):
     plt.close()
     
 
+# function to get average instructions per
+
+
 
 def main():
     nr_dpus = [16]

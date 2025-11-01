@@ -27,38 +27,6 @@ int main(void) {
     return kernels[DPU_INPUT_ARGUMENTS.kernel](); 
 }
 
-// AXPY: Computes AXPY for a cached block 
-static void axpy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
-    for (unsigned int i = 0; i < l_size; ++i) {
-        bufferY[i] = bufferX[i] * alpha + bufferY[i];
-    }
-}
-
-// AXMINY: Computes AXMINY for a cached block
-static void axminy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
-    for (unsigned int i = 0; i < l_size; ++i) {
-        bufferY[i] = bufferX[i] * alpha - bufferY[i];
-    }
-}
-
-// AXMLTY: Computes AXMLTY for a cached block
-static void axmuly(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
-    for (unsigned int i = 0; i < l_size; ++i) {
-        bufferY[i] = bufferX[i] * alpha * bufferY[i];
-    }
-}
-
-// AXDIVY: Computes AXDIVY for a cached block
-static void axdivy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
-    for (unsigned int i = 0; i < l_size; ++i) {
-#if defined(FLOAT) || defined(DOUBLE)
-        bufferY[i] = (T)(bufferX[i] * alpha / bufferY[i]);
-#else
-        bufferY[i] = (bufferY[i] != 0) ? (T)(bufferX[i] * alpha / bufferY[i]) : (T)0;
-#endif
-    }
-}
-
 // main_kernel1
 int main_kernel1() {
     unsigned int tasklet_id = me();
@@ -143,15 +111,7 @@ int main_kernel1() {
         mram_read(y_ptr, wram_y, mem_access_size);
 
         // Computer vector addition
-#if defined(AXPY)
-        axpy(wram_y, wram_x, alpha, (unsigned int)(mem_access_size / sizeof(T)));
-#elif defined(AXMINY)
-        axminy(wram_y, wram_x, alpha, (unsigned int)(mem_access_size / sizeof(T)));
-#elif defined(AXMULY)
-        axmuly(wram_y, wram_x, alpha, (unsigned int)(mem_access_size / sizeof(T)));
-#elif defined(AXDIVY)
-        axdivy(wram_y, wram_x, alpha, (unsigned int)(mem_access_size / sizeof(T)));
-#endif
+        
 
         // Write cache to current MRAM block
         mram_write(wram_y, y_ptr, mem_access_size);
