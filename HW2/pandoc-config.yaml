@@ -1,0 +1,11 @@
+---
+geometry: margin=1in
+documentclass: article
+classoption: twocolumn
+header-includes:
+  - \usepackage{fancyhdr}
+  - \pagestyle{fancy}
+  - \fancyhf{}
+  - \fancyhead[C]{\footnotesize Frederic zur Bonsen -- 10.2025}
+  - \renewcommand{\headrulewidth}{0pt}
+---

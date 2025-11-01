@@ -1,13 +1,19 @@
-# Review: "Tiered-Latency DRAM: A Low Latency and Low Cost DRAM Architecture"
+# 6 Review: "Tiered-Latency DRAM: A Low Latency and Low Cost DRAM Architecture" (6)
 
 ## Summary
 
 The paper discusses the issue of DRAM speed as a major drag on overall performance of a computer system. It elaborates that the main source of DRAM latency is the bitline capacitance which is proportional to the bitline length. This issue is commonly addressed by DRAM producers as a tradeoff between speed and cost. The paper offers a solution taking advantage of both the speed of short bitlines and the cost of long bitlines.
+
 - The paper explains the fundamnetal tradeof in conventional DRAMs. A shorter bitline means a lower bitline capacitance which is easier to drive to a desired voltage. But a shorter bitline means that more bitlines are needed to provide the same amount of memory. As each bitline needs a sense-amplifier this increases the cost of the DRAM considerably. For a longer bitline the exact oposite is the case.
+
 -  The paper proposes a solution that utilizes a gate in the middle of the bitline to split it into two sections. A close and fast section and a far and slow section. Therfore allowing both the benefits of short and long bitlines in conventional designs at small cost.
+
 -  The paper establishes the issue of managing the now partitioned memory. The easiest but also worst performing option is to use it like normal DRAM that has a faster and a slower memory partition. But performance gain can be increased in two further ways.
+
     - The fast memory can be handled as a cache only visible to the DRAM for the slow memory allowing a better on average performance but decreasin the amount of memory on the DRAM. The paper proposes several caching strategies to optimally use the memory and maximise performance.
+
     - The fast memory can be made visible to OS allowing the os to implement a tailored soltuion by deciding what data to store in the fast and what data to store in the slow memory.
+
 - The paper evaluates the performance of the TL-DRAM by performing extensive simulations of the system.
 
 ## Strengths
@@ -25,5 +31,7 @@ The issue addressed in the paper is an important one and the solution proposed i
 ## Takeaways
 
 - DRAM-latency is an important issue that needs to be addressed.
+
 - The proposed TL-DRAM is a smart implementation using preexisting structures with minimal modifications to achieve remarkable results.
+
 - The real-world applicability of this paper is flawed at best as it proposes a theoretical concept and assumes very optimistic cost estimations.
