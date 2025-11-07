@@ -15,8 +15,8 @@
 
 // #define SINGLE_TASKLET
 // #define ZERO_TASKLET_COLLECTION
-#define TREE_BASED_BARRIERS
-// #define TREE_BASED_HANDSHAKES
+// #define TREE_BASED_BARRIERS
+#define TREE_BASED_HANDSHAKES
 // #define MUTEX
 
 // Input and output arguments
@@ -96,23 +96,24 @@ static T red_tree_based_barriers(unsigned int tasklet_id) {
     return tasklet_results[tasklet_id];
 }
 
-// static T red_tree_based_handshakes(unsigned int tasklet_id) {
-//     // find neighbouring tasklets
-//     for (unsigned int hood = 1; hood < NR_TASKLETS; hood *= 2) {
-//         // only let the first entry in the hood collect
-//         if (tasklet_id % (2 * hood) == 0) {
-//             handshake_wait_for(tasklet_id + hood);
-//             // check bounds
-//             if (tasklet_id + hood < NR_TASKLETS) {
-//                 tasklet_results[tasklet_id] += tasklet_results[tasklet_id + hood];
-//             }
-//         } else {
-//             handshake_notify();
-//         }
-//         // print_tasklets(tasklet_id);
-//     }
-//     return tasklet_results[tasklet_id];
-// }
+// handshake case:
+static T red_tree_based_handshakes(unsigned int tasklet_id) {
+    // find neighbouring tasklets
+    for (unsigned int hood = 1; hood < NR_TASKLETS; hood *= 2) {
+        // only let the first entry in the hood collect
+        if (tasklet_id % (2 * hood) == 0) {
+            handshake_wait_for(tasklet_id + hood);
+            // check bounds
+            if (tasklet_id + hood < NR_TASKLETS) {
+                tasklet_results[tasklet_id] += tasklet_results[tasklet_id + hood];
+            }
+        } else {
+            handshake_notify();
+        }
+        // print_tasklets(tasklet_id);
+    }
+    return tasklet_results[tasklet_id];
+}
 
 // reduce the tasklets
 static T red_tasklet(unsigned int tasklet_id) {
@@ -123,7 +124,7 @@ static T red_tasklet(unsigned int tasklet_id) {
 #elif defined(TREE_BASED_BARRIERS)
     return red_tree_based_barriers(tasklet_id);
 #elif defined(TREE_BASED_HANDSHAKES)
-
+    return red_tree_based_barriers(tasklet_id);
 #else // MUTEX case
 #endif
 }
