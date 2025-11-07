@@ -9,9 +9,16 @@
 #include <alloc.h>
 #include <perfcounter.h>
 #include <barrier.h>
+#include <vmutex.h>
 
 #include "../support/common.h"
 #include "../support/cyclecount.h"
+
+// #define SINGLE_TASKLET
+// #define ZERO_TASKLET_COLLECTION
+// #define TREE_BASED_BARRIERS
+// #define TREE_BASED_HANDSHAKES
+// #define MUTEX
 
 // Input and output arguments
 __host dpu_arguments_t DPU_INPUT_ARGUMENTS;
@@ -20,6 +27,11 @@ __host dpu_results_t DPU_RESULTS[NR_TASKLETS];
 // Barrier
 BARRIER_INIT(my_barrier, NR_TASKLETS);
 
+// mutex
+MUTEX_INIT(my_mutex);
+static T mutex_sum = 0;
+
+
 extern int main_kernel1(void);
 int (*kernels[nr_kernels])(void) = {main_kernel1};
 int main(void) { 
@@ -27,11 +39,112 @@ int main(void) {
     return kernels[DPU_INPUT_ARGUMENTS.kernel](); 
 }
 
-// AXPY: Computes AXPY for a cached block 
-static void axpy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
+// intermediate value to hold the tasklet results
+static T tasklet_results[NR_TASKLETS] = {0};
+
+// VEC_RED: compute VEC_RED of a cached block
+static void vec_red(T* bufferX, unsigned int l_size, unsigned int tasklet_id) {
     for (unsigned int i = 0; i < l_size; ++i) {
-        bufferY[i] = bufferX[i] * alpha + bufferY[i];
+        tasklet_results[tasklet_id] += bufferX[i];
     }
+}
+
+// single tasklet case:
+static T red_single_tasklet() {
+    return tasklet_results[0];
+}
+
+// 0-tasklet collection
+static T red_zero_tasklet_collection(unsigned int tasklet_id) {
+
+    // wait for all tasklets to complete
+    barrier_wait(&my_barrier);
+
+    if (tasklet_id == 0) {
+        T total_sum = 0;
+        for (unsigned int i = 0; i < NR_TASKLETS; ++i) {
+            total_sum += tasklet_results[i];
+        }
+        return total_sum;
+    }
+    return 0;
+}
+
+static void print_tasklets(unsigned int tasklet_id) {
+    if (tasklet_id == 0) {
+        for (int i = 0; i < NR_TASKLETS; ++i) {
+            printf("[%i],", tasklet_results[i]);
+        }
+        printf("\n");
+    }
+    barrier_wait(&my_barrier);
+}
+
+// barrier case:
+static T red_tree_based_barriers(unsigned int tasklet_id) {
+
+    // wait for all tasklets to complete
+    barrier_wait(&my_barrier);
+    // print_tasklets(tasklet_id);
+
+    // find neighbouring tasklets
+    for (unsigned int hood = 1; hood < NR_TASKLETS; hood *= 2) {
+        // only let the first entry in the hood collect
+        if (tasklet_id % (2 * hood) == 0) {
+            // check bounds
+            if (tasklet_id + hood < NR_TASKLETS) {
+                tasklet_results[tasklet_id] += tasklet_results[tasklet_id + hood];
+            }
+        }
+        barrier_wait(&my_barrier);
+        // print_tasklets(tasklet_id);
+    }
+    return tasklet_results[tasklet_id];
+}
+
+// handshake case:
+static T red_tree_based_handshakes(unsigned int tasklet_id) {
+    // find neighbouring tasklets
+    for (unsigned int hood = 1; hood < NR_TASKLETS; hood *= 2) {
+        // only let the first entry in the hood collect
+        if (tasklet_id % (2 * hood) == 0) {
+            handshake_wait_for(tasklet_id + hood);
+            // check bounds
+            if (tasklet_id + hood < NR_TASKLETS) {
+                tasklet_results[tasklet_id] += tasklet_results[tasklet_id + hood];
+            }
+        } else {
+            handshake_notify();
+        }
+        // print_tasklets(tasklet_id);
+    }
+    return tasklet_results[tasklet_id];
+}
+
+// mutex case:
+static T red_mutex(unsigned int tasklet_id) {
+
+    mutex_lock(my_mutex);
+    mutex_sum += tasklet_results[tasklet_id];
+    mutex_unlock(my_mutex);
+
+    barrier_wait(&my_barrier);
+    return mutex_sum;
+}
+
+// reduce the tasklets
+static T red_tasklet(unsigned int tasklet_id) {
+#if defined(SINGLE_TASKLET)
+    return red_single_tasklet();
+#elif defined(ZERO_TASKLET_COLLECTION)
+    return red_zero_tasklet_collection(tasklet_id);
+#elif defined(TREE_BASED_BARRIERS)
+    return red_tree_based_barriers(tasklet_id);
+#elif defined(TREE_BASED_HANDSHAKES)
+    return red_tree_based_barriers(tasklet_id);
+#else // MUTEX case
+    return red_mutex(tasklet_id);
+#endif
 }
 
 // main_kernel1
@@ -48,8 +161,10 @@ int main_kernel1() {
         perfcounter_config(COUNT_INSTRUCTIONS, true); // Initialize once the instruction counter
 #endif
     }
+
     // Barrier
     barrier_wait(&my_barrier);
+
 #if defined(CYCLES) || defined(INSTRUCTIONS)
     perfcounter_count count;
     dpu_results_t *result = &DPU_RESULTS[tasklet_id];
@@ -59,22 +174,20 @@ int main_kernel1() {
 
     uint32_t input_size_dpu_bytes = DPU_INPUT_ARGUMENTS.size; // Input size per DPU in bytes
     uint32_t input_size_dpu_bytes_transfer = DPU_INPUT_ARGUMENTS.transfer_size; // Transfer input size per DPU in bytes
-    T alpha = DPU_INPUT_ARGUMENTS.alpha; // alpha (a in axpy)
 
 
     // Address of the current processing block in MRAM
     uint32_t base_tasklet = tasklet_id << BLOCK_SIZE_LOG2;
     uint32_t mram_base_addr_X = (uint32_t)DPU_MRAM_HEAP_POINTER;
-    uint32_t mram_base_addr_Y = (uint32_t)(DPU_MRAM_HEAP_POINTER + input_size_dpu_bytes_transfer);
 
     // Initialize a local cache in WRAM to store the MRAM block
     T* wram_x = (T*)(((uintptr_t)mem_alloc(BLOCK_SIZE + 8) + 7) & ~0x7); // force 8-bit alignment
-    T* wram_y = (T*)(((uintptr_t)mem_alloc(BLOCK_SIZE + 8) + 7) & ~0x7);
-    if (!wram_x || !wram_y) {
+
+    if (!wram_x) {
         printf("error: mem_alloc failed\n");
         exit(1);
     }
-    if (((uint32_t)wram_x % 8) != 0 || ((uint32_t)wram_y % 8) != 0) {
+    if (((uint32_t)wram_x % 8) != 0) {
         printf("error: WRAM buffer not 8-byte aligned\n");
         exit(1);
     }
@@ -83,12 +196,13 @@ int main_kernel1() {
 
         // initialize local variables
         __mram_ptr T* x_ptr = (__mram_ptr T*)(mram_base_addr_X + byte_index);
-        __mram_ptr T* y_ptr = (__mram_ptr T*)(mram_base_addr_Y + byte_index);
         uint32_t mem_access_size = BLOCK_SIZE;
+
 
         // Bound checking
         if (byte_index + BLOCK_SIZE > input_size_dpu_bytes) {
             mem_access_size = input_size_dpu_bytes - byte_index;
+            printf("pruning: %i\n", mem_access_size/(sizeof(T)));
         }
         /* - The source of target address in WRAM must be aligned on 8 bytes.
          * - The source or target address in MRAM must be aligned on 8 bytes.
@@ -115,13 +229,19 @@ int main_kernel1() {
 
         // Load cache with current MRAM block
         mram_read(x_ptr, wram_x, mem_access_size);
-        mram_read(y_ptr, wram_y, mem_access_size);
 
-        // Computer vector addition
-        axpy(wram_y, wram_x, alpha, (unsigned int)(mem_access_size / sizeof(T)));
+        // Computer vector reduction
+        vec_red(wram_x, (unsigned int)(mem_access_size / sizeof(T)), tasklet_id);
 
         // Write cache to current MRAM block
-        mram_write(wram_y, y_ptr, mem_access_size);
+        mram_write(wram_x, x_ptr, mem_access_size);
+    }
+
+    // reduce all the tasklets into one value
+    T tasklet_sum = red_tasklet(tasklet_id);
+
+    if (tasklet_id == 0) {
+        mram_write(&tasklet_sum, (__mram_ptr T*)mram_base_addr_X, 8*(sizeof(T)/8 + 1));
     }
 
 #if defined(CYCLES) || defined(INSTRUCTIONS)

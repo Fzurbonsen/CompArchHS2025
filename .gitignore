@@ -1,13 +1,25 @@
+
 lab1/basesim
 lab1/sim
 lab1/.vscode
 lab1/data
 lab1/inputs/benchmark/Lab7
 lab1/run.sh
+
 lab2/basesim*
-<<<<<<< HEAD
-=======
 lab2/sim
->>>>>>> lab2
+
+lab3/problem/task1/bin/*
+lab3/problem/task1/bin
+lab3/problem/task2/bin/*
+lab3/problem/task2/bin
+lab3/*.png
+lab3/problem/task3/bin
+lab3/problem/task3/bin/*
+lab3/problem/task4/bin
+lab3/problem/task4/bin/*
+lab3/problem/task4/*.conf
+lab3/problem/task4/*.log
+
 *slurm*
 *.vscode
