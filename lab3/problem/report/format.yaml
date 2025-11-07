@@ -1,0 +1,16 @@
+---
+geometry:
+  - margin=0.75in
+  - letterpaper
+papersize: a4
+author: "Frederic zur Bonsen"
+date: "11.2025"
+header-includes: |
+  \usepackage{fancyhdr}
+  \usepackage{lastpage}
+  \pagestyle{fancy}
+  \fancyhead[L]{Mark Marolf (mmarolf@ethz.ch)}
+  \fancyhead[C]{}
+  \fancyhead[R]{\thepage/\pageref{LastPage}}
+  \fancyfoot[C]{}
+---
