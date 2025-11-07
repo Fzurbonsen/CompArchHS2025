@@ -14,8 +14,8 @@
 #include "../support/cyclecount.h"
 
 // #define SINGLE_TASKLET
-#define ZERO_TASKLET_COLLECTION
-// #define TREE_BASED_BARRIERS
+// #define ZERO_TASKLET_COLLECTION
+#define TREE_BASED_BARRIERS
 // #define TREE_BASED_HANDSHAKES
 // #define MUTEX
 
@@ -64,34 +64,55 @@ static T red_zero_tasklet_collection(unsigned int tasklet_id) {
     return 0;
 }
 
-// // barrier case:
-// static T red_tree_based_barriers(unsigned int tasklet_id) {
+static void print_tasklets(unsigned int tasklet_id) {
+    if (tasklet_id == 0) {
+        for (int i = 0; i < NR_TASKLETS; ++i) {
+            printf("[%i],", tasklet_results[i]);
+        }
+        printf("\n");
+    }
+    barrier_wait(&my_barrier);
+}
 
-//     // wait for all tasklets to complete
-//     barrier_wait(&my_barrier);
+// barrier case:
+static T red_tree_based_barriers(unsigned int tasklet_id) {
 
-//     // get the result of this tasklet
-//     T value = tasklet_results[tasklet_id];
+    // wait for all tasklets to complete
+    barrier_wait(&my_barrier);
+    // print_tasklets(tasklet_id);
 
+    // find neighbouring tasklets
+    for (unsigned int hood = 1; hood < NR_TASKLETS; hood *= 2) {
+        // only let the first entry in the hood collect
+        if (tasklet_id % (2 * hood) == 0) {
+            // check bounds
+            if (tasklet_id + hood < NR_TASKLETS) {
+                tasklet_results[tasklet_id] += tasklet_results[tasklet_id + hood];
+            }
+        }
+        barrier_wait(&my_barrier);
+        // print_tasklets(tasklet_id);
+    }
+    return tasklet_results[tasklet_id];
+}
+
+// static T red_tree_based_handshakes(unsigned int tasklet_id) {
 //     // find neighbouring tasklets
 //     for (unsigned int hood = 1; hood < NR_TASKLETS; hood *= 2) {
-//         unsigned int hood_size = hood * 2;
 //         // only let the first entry in the hood collect
-//         if (tasklet_id % hood_size == 0) {
-//             T gang_value =
+//         if (tasklet_id % (2 * hood) == 0) {
+//             handshake_wait_for(tasklet_id + hood);
+//             // check bounds
+//             if (tasklet_id + hood < NR_TASKLETS) {
+//                 tasklet_results[tasklet_id] += tasklet_results[tasklet_id + hood];
+//             }
+//         } else {
+//             handshake_notify();
 //         }
-
+//         // print_tasklets(tasklet_id);
 //     }
-//     return total_sum;
+//     return tasklet_results[tasklet_id];
 // }
-
-static T red_tree_based_handshakes(unsigned int tasklet_id) {
-    T total_sum = 0;
-    for (unsigned int i = 0; i < NR_TASKLETS; ++i) {
-        total_sum += tasklet_results[i];
-    }
-    return total_sum;
-}
 
 // reduce the tasklets
 static T red_tasklet(unsigned int tasklet_id) {

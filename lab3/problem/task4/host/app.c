@@ -39,6 +39,7 @@ static void read_input(T* A, unsigned int nr_elements) {
     printf("nr_elements\t%u\n", nr_elements);
     for (unsigned int i = 0; i < nr_elements; i++) {
         A[i] = (T) (rand());
+        A[i] = (T) 1;
     }
 }
 

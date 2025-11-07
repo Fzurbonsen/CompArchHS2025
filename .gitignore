@@ -18,6 +18,8 @@ lab3/problem/task3/bin
 lab3/problem/task3/bin/*
 lab3/problem/task4/bin
 lab3/problem/task4/bin/*
+lab3/problem/task4/*.conf
+lab3/problem/task4/*.log
 
 *slurm*
 *.vscode
