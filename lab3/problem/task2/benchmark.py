@@ -8,6 +8,7 @@
 import subprocess
 import re
 import matplotlib.pyplot as plt
+import csv
 
 # function to compile and run an instance
 def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variable_type):
@@ -89,25 +90,49 @@ def plot_instruction_count(data):
     plt.close()
     
 
+# function to wirte to CSV file
+def print_to_csv(nr_dpus, nr_tasklets, transfer_types, input_sizes, variable_types):
+    # csv format:
+    # nr_dpus,input_size,transfer_type,nr_tasklets,variable_type,nr_instructions
+    header = ["nr_dpus","input_size","transfer_type","variable_type","nr_tasklets","nr_instructions"]
+    data = [header]
 
-def main():
-    nr_dpus = [16]
-    nr_tasklets = [i for i in range(1, 20)]
-    transfer_types = ["PARALLEL"]
-    input_sizes = [8 * 131072]
-    # variable_types = ["INT32", "INT64", "FLOAT", "DOUBLE", "CHAR", "SHORT"]
-    variable_types = ["INT64"]
-
-    data = []
-    
+    # compute data
     for transfer_type in transfer_types:
         for nr_dpu in nr_dpus:
             for variable_type in variable_types:
                 for nr_tasklet in nr_tasklets:
                     for input_size in input_sizes:
-                        data.append(compile_and_run(nr_dpu, nr_tasklet, transfer_type, 0, input_size, variable_type))
+                        nr_instructions = compile_and_run(nr_dpu, nr_tasklet, transfer_type, 0, input_size, variable_type)
+                        current_data = [nr_dpu, input_size, transfer_type, variable_type, nr_tasklet, nr_instructions]
+                        data.append(current_data)
 
-    plot_instruction_count(data)
+    # write to CSV file
+    with open("lab3_task2_data.csv", "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerows(data)
+
+def main():
+    nr_dpus = [1, 16, 32, 64]
+    nr_tasklets = [i for i in range(1, 24)]
+    transfer_types = ["PARALLEL"]
+    input_sizes = [8 * 131072]
+    # variable_types = ["INT32", "INT64", "FLOAT", "DOUBLE", "CHAR", "SHORT"]
+    variable_types = ["INT64"]
+
+    print_to_csv(nr_dpus, nr_tasklets, transfer_types, input_sizes, variable_types)
+
+    # data = []
+    
+    # for transfer_type in transfer_types:
+    #     for nr_dpu in nr_dpus:
+    #         for variable_type in variable_types:
+    #             for nr_tasklet in nr_tasklets:
+    #                 for input_size in input_sizes:
+    #                     data.append(compile_and_run(nr_dpu, nr_tasklet, transfer_type, 0, input_size, variable_type))
+
+
+    # plot_instruction_count(data)
 
     print("benchmark complete!")
 

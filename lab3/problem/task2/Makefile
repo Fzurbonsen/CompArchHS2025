@@ -3,7 +3,7 @@ HOST_DIR := host
 BUILDDIR ?= bin
 NR_DPUS ?= 1
 NR_TASKLETS ?= 16
-BLOCK ?= 10
+BLOCK ?= 9
 TYPE ?= INT32
 TRANSFER ?= PARALLEL
 PRINT ?= 0
@@ -13,6 +13,7 @@ define conf_filename
 	${BUILDDIR}/.NR_DPUS_$(1)_NR_TASKLETS_$(2)_BLOCK_$(3)_TYPE_$(4)_TRANSFER_$(5)_PRINT_$(6)_PERF_$(7).conf
 endef
 CONF := $(call conf_filename,${NR_DPUS},${NR_TASKLETS},${BLOCK},${TYPE},${TRANSFER},${PRINT},${PERF})
+
 
 HOST_TARGET := ${BUILDDIR}/host_code
 DPU_TARGET := ${BUILDDIR}/dpu_code

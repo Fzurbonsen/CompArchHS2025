@@ -9,6 +9,7 @@ import os
 import subprocess
 import re
 import matplotlib.pyplot as plt
+import csv
 
 # function to compile and run an instance
 def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size):
@@ -82,40 +83,64 @@ def plot_performance(transfer_type, nr_dpus, data):
     plt.plot(cpu_dpu_time, label='CPU-DPU Time')
     plt.plot(dpu_kernel_tim, label='DPU Kernel Time')
     plt.plot(dpu_cpu_time, label='DPU-CPU Time')
+    plt.savefig("fig.eps")
     plt.savefig("fig.png")
     plt.close()
     
 
+# function to print to a .csv file
+def print_to_csv(nr_dpus, input_sizes, transfer_types):
+    # csv format:
+    # nr_dpus,input_size,transfer_type,cpu-dpu_time,dpu-cpu_time
+    header = ["nr_dpus","input_size","transfer_type","cpu-dpu_time","dpu-cpu_time"]
+    data = [header]
 
+    # compute data
+    for nr_dpu in nr_dpus:
+        for input_size in input_sizes:
+            for transfer_type in transfer_types:
+                cpu_dpu_time, dpu_kernel_time, dpu_cpu_time = compile_and_run(nr_dpu, 16, transfer_type, 1, input_size)
+                current_data = [nr_dpu, input_size, transfer_type, cpu_dpu_time, dpu_cpu_time]
+                data.append(current_data)
+        
+
+    # write to CSV file
+    with open("data.csv", "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerows(data)
+        
 
 
 def main():
-    nr_dpus = [1, 4, 16, 64]
+    # nr_dpus = [1, 4, 16, 64]
+    nr_dpus = [i for i in range(1, 65)]
     # nr_tasklets = [16]
-    input_sizes = [1 * 131072, 24 * 131072, 48 * 131072]
+    input_sizes = [1 * 16384, 24 * 16384, 48 * 16384]
     transfer_types = ["PARALLEL", "BROADCAST", "SERIAL"]
 
-    results = {
-        "PARALLEL" : [],
-        "BROADCAST" : [],
-        "SERIAL" : []
-    }
+    print_to_csv(nr_dpus, input_sizes, transfer_types)
 
-    for transfer_type in transfer_types:
-        dpu_list = []
-        for nr_dpu in nr_dpus:
-            input_list = []
-            for input_size in input_sizes:
-                input_list.append(compile_and_run(nr_dpu, 16, transfer_type, 0, input_size))
-            dpu_list.append(input_list)
-        results[transfer_type] = dpu_list
+    # results = {
+    #     "PARALLEL" : [],
+    #     "BROADCAST" : [],
+    #     "SERIAL" : []
+    # }
 
-    for transfer_type in transfer_types:
-        nr_dpus = 1
-        single_type_list = results[transfer_type]
-        for data in single_type_list:
-            plot_performance(transfer_type, nr_dpus, data)
-            nr_dpus *= 4
+    # for transfer_type in transfer_types:
+    #     dpu_list = []
+    #     for nr_dpu in nr_dpus:
+    #         input_list = []
+    #         for input_size in input_sizes:
+    #             input_list.append(compile_and_run(nr_dpu, 16, transfer_type, 0, input_size))
+    #         dpu_list.append(input_list)
+    #     results[transfer_type] = dpu_list
+
+    # for transfer_type in transfer_types:
+    #     nr_dpus = 1
+    #     single_type_list = results[transfer_type]
+    #     for data in single_type_list:
+    #         plot_performance(transfer_type, nr_dpus, data)
+    #         nr_dpus *= 4
 
 
 

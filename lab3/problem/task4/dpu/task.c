@@ -18,7 +18,7 @@
 // #define ZERO_TASKLET_COLLECTION
 // #define TREE_BASED_BARRIERS
 // #define TREE_BASED_HANDSHAKES
-#define MUTEX
+// #define MUTEX
 
 // Input and output arguments
 __host dpu_arguments_t DPU_INPUT_ARGUMENTS;

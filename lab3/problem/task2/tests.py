@@ -61,7 +61,7 @@ def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size, variab
 
 def main():
     nr_dpus = [16]
-    nr_tasklets = [i for i in range(1, 20)]
+    nr_tasklets = [i for i in range(20, 24)]
     transfer_types = ["PARALLEL", "SERIAL"]
     input_sizes = [8 * 131072]
     variable_types = ["INT32", "INT64", "FLOAT", "DOUBLE", "CHAR", "SHORT"]
