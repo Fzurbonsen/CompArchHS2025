@@ -17,7 +17,7 @@
 #include "../support/timer.h"
 #include "../support/params.h"
 
-#define DEBUG
+// #define DEBUG
 #ifdef DEBUG
 static bool debug_check = true;
 #endif // DEBUG
@@ -39,7 +39,6 @@ static void read_input(T* A, unsigned int nr_elements) {
     printf("nr_elements\t%u\n", nr_elements);
     for (unsigned int i = 0; i < nr_elements; i++) {
         A[i] = (T) (rand());
-        A[i] = (T) 1;
     }
 }
 
@@ -256,7 +255,7 @@ int main(int argc, char **argv) {
         // prepare the buffers to recieve Y from the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
-            DPU_ASSERT(dpu_log_read(dpu, stderr));
+            // DPU_ASSERT(dpu_log_read(dpu, stderr));
             DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * 8]));
             // DPU_ASSERT(dpu_prepare_xfer(dpu, &X[i * 8]));
         }

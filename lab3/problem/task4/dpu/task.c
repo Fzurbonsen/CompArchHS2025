@@ -9,6 +9,7 @@
 #include <alloc.h>
 #include <perfcounter.h>
 #include <barrier.h>
+#include <vmutex.h>
 
 #include "../support/common.h"
 #include "../support/cyclecount.h"
@@ -16,8 +17,8 @@
 // #define SINGLE_TASKLET
 // #define ZERO_TASKLET_COLLECTION
 // #define TREE_BASED_BARRIERS
-#define TREE_BASED_HANDSHAKES
-// #define MUTEX
+// #define TREE_BASED_HANDSHAKES
+#define MUTEX
 
 // Input and output arguments
 __host dpu_arguments_t DPU_INPUT_ARGUMENTS;
@@ -25,6 +26,11 @@ __host dpu_results_t DPU_RESULTS[NR_TASKLETS];
 
 // Barrier
 BARRIER_INIT(my_barrier, NR_TASKLETS);
+
+// mutex
+MUTEX_INIT(my_mutex);
+static T mutex_sum = 0;
+
 
 extern int main_kernel1(void);
 int (*kernels[nr_kernels])(void) = {main_kernel1};
@@ -115,6 +121,17 @@ static T red_tree_based_handshakes(unsigned int tasklet_id) {
     return tasklet_results[tasklet_id];
 }
 
+// mutex case:
+static T red_mutex(unsigned int tasklet_id) {
+
+    mutex_lock(my_mutex);
+    mutex_sum += tasklet_results[tasklet_id];
+    mutex_unlock(my_mutex);
+
+    barrier_wait(&my_barrier);
+    return mutex_sum;
+}
+
 // reduce the tasklets
 static T red_tasklet(unsigned int tasklet_id) {
 #if defined(SINGLE_TASKLET)
@@ -126,6 +143,7 @@ static T red_tasklet(unsigned int tasklet_id) {
 #elif defined(TREE_BASED_HANDSHAKES)
     return red_tree_based_barriers(tasklet_id);
 #else // MUTEX case
+    return red_mutex(tasklet_id);
 #endif
 }
 
