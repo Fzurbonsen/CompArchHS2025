@@ -17,6 +17,11 @@
 #include "../support/timer.h"
 #include "../support/params.h"
 
+#define DEBUG
+#ifdef DEBUG
+static bool debug_check = true;
+#endif // DEBUG
+
 // Define the DPU Binary path as DPU_BINARY here
 #ifndef DPU_BINARY
 #define DPU_BINARY "./bin/dpu_code"
@@ -24,48 +29,23 @@
 
 // Pointer declaration
 static T* X;
-static T* Y;
-static T* Y_host;
+static T* Y; // return value
+static T* X_host;
+static T* Y_host; // return value
 
 // Create input arrays
-static void read_input(T* A, T* B, unsigned int nr_elements) {
+static void read_input(T* A, unsigned int nr_elements) {
     srand(0);
     printf("nr_elements\t%u\n", nr_elements);
     for (unsigned int i = 0; i < nr_elements; i++) {
         A[i] = (T) (rand());
-        B[i] = (T) (rand());
     }
 }
 
-// Compute output in the host for verification purposes
-static void axpy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
-    for (unsigned int i = 0; i < nr_elements; i++) {
-        B[i] = alpha * A[i] + B[i];
-    }
-}
-
-// Compute output in the host for verification purposes
-static void axminy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
-    for (unsigned int i = 0; i < nr_elements; i++) {
-        B[i] = alpha * A[i] - B[i];
-    }
-}
-
-// Compute output in the host for verification purposes
-static void axmuly_host(T* A, T* B, T alpha, unsigned int nr_elements) {
-    for (unsigned int i = 0; i < nr_elements; i++) {
-        B[i] = alpha * A[i] * B[i];
-    }
-}
-
-// Compute output in the host for verification purposes
-static void axdivy_host(T* A, T* B, T alpha, unsigned int nr_elements) {
-    for (unsigned int i = 0; i < nr_elements; i++) {
-#if defined(FLOAT) || defined(DOUBLE)
-        B[i] = (T)(alpha * A[i] / B[i]);
-#else
-        B[i] = (B[i] != 0) ? (T)(alpha * A[i] / B[i]) : (T)0;
-#endif
+// compute output in the host for verification purposes
+static void vec_red_host(T* A, unsigned int nr_elements) {
+    for (unsigned int i = 1; i < nr_elements; ++i) {
+        A[0] += A[i];
     }
 }
 
@@ -103,16 +83,14 @@ int main(int argc, char **argv) {
 
     // Input/output allocation in host main memory
     X = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
-    Y = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
-    Y_host = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
-    T *bufferX = X;
-    T *bufferY = Y;
-    T alpha = p.alpha;
+    Y = malloc(nr_of_dpus * sizeof(T));
+    X_host = malloc(input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
+    Y_host = malloc(nr_of_dpus * sizeof(T));
     unsigned int i = 0;
 
     // Create an input file with arbitrary data
-    read_input(X, Y, input_size);
-    memcpy(Y_host, Y, input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
+    read_input(X, input_size);
+    memcpy(X_host, X, input_size_dpu_8bytes * nr_of_dpus * sizeof(T));
 
     // Loop over main kernel
     for(int rep = 0; rep < p.n_warmup + p.n_reps; rep++) {
@@ -120,13 +98,8 @@ int main(int argc, char **argv) {
         // Compute output on CPU (verification purposes)
         if(rep >= p.n_warmup)
             start(&timer, 0, rep - p.n_warmup);
-
-
-
-        // ToDo: add tests
-
-
-
+            vec_red_host(X_host, input_size);
+            Y_host[0] = X_host[0]; // store the result in the first entra of the output vector (which is empty otherwise)
         if(rep >= p.n_warmup)
             stop(&timer, 0);
 
@@ -138,12 +111,10 @@ int main(int argc, char **argv) {
             input_arguments[i].size=input_size_dpu_8bytes * sizeof(T); 
             input_arguments[i].transfer_size=input_size_dpu_8bytes * sizeof(T); 
             input_arguments[i].kernel=kernel;
-            input_arguments[i].alpha=alpha;
         }
         input_arguments[nr_of_dpus-1].size=(input_size_8bytes - input_size_dpu_8bytes * (NR_DPUS-1)) * sizeof(T); 
         input_arguments[nr_of_dpus-1].transfer_size=input_size_dpu_8bytes * sizeof(T); 
         input_arguments[nr_of_dpus-1].kernel=kernel;
-        input_arguments[nr_of_dpus-1].alpha=alpha;
 
         if(rep >= p.n_warmup)
             start(&timer, 1, rep - p.n_warmup); // Start timer (CPU-DPU transfers)
@@ -160,10 +131,28 @@ int main(int argc, char **argv) {
                                 sizeof(input_arguments[0]), 
                                 DPU_XFER_DEFAULT));
 
+        
+# ifdef DEBUG
+        // compaer arrays before pushing to the dpus
+        fprintf(stderr, "\n");
+        for (unsigned int j = 0; j < input_size; ++j) {
+            if (X_host[i] != X[i]) {
+                debug_check = false;
+            }
+        }
+        if (!debug_check) {
+            fprintf(stderr, "[host]error: arrays are unequal before pushing to the DPUs!\n");
+            for (unsigned int j = 0; j < input_size; ++j) {
+                if (X_host[i] != X[i]) {
+                    fprintf(stderr, "%i: %i -- %i\n", j, X_host[j], X[j]);
+                }
+            }
+            exit(1);
+        }
+#endif // DEBUG
+
         // Copy input arrays
 #ifdef SERIAL // Serial transfers
-
-        // we have to push both the X and Y to the DPUs serially:
 
         // prepare the buffers to push X to the DPUs
         i = 0;
@@ -174,28 +163,12 @@ int main(int argc, char **argv) {
         DPU_ASSERT(dpu_push_xfer(dpu_set, 
                                 DPU_XFER_TO_DPU, 
                                 DPU_MRAM_HEAP_POINTER_NAME, 
-                                0,
+                                0, // offset to hold return value
                                 input_size_dpu_8bytes * sizeof(T), 
-                                DPU_XFER_DEFAULT));
-
-
-        // prepare the buffers to push Y to the DPUs
-        i = 0;
-        DPU_FOREACH(dpu_set, dpu, i) {
-            DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
-        }
-        // push the buffers to the DPUs
-        DPU_ASSERT(dpu_push_xfer(dpu_set,
-                                DPU_XFER_TO_DPU,
-                                DPU_MRAM_HEAP_POINTER_NAME,
-                                input_size_dpu_8bytes * sizeof(T),
-                                input_size_dpu_8bytes * sizeof(T), // we need an offset to place it behind the X section
                                 DPU_XFER_DEFAULT));
 
 #else // Parallel transfers
 
-        // we have to push both the X and Y to the DPUs asynchronously:
-
         // prepare the buffers to push X to the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
@@ -205,27 +178,32 @@ int main(int argc, char **argv) {
         DPU_ASSERT(dpu_push_xfer(dpu_set, 
                                 DPU_XFER_TO_DPU, 
                                 DPU_MRAM_HEAP_POINTER_NAME, 
-                                0,
+                                0, // offset to hold return value
                                 input_size_dpu_8bytes * sizeof(T), 
                                 DPU_XFER_ASYNC));
         DPU_ASSERT(dpu_sync(dpu_set));
 
-
-        // prepare the buffers to push Y to the DPUs
-        i = 0;
-        DPU_FOREACH(dpu_set, dpu, i) {
-            DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
-        }
-        // push the buffers to the DPUs
-        DPU_ASSERT(dpu_push_xfer(dpu_set,
-                                DPU_XFER_TO_DPU,
-                                DPU_MRAM_HEAP_POINTER_NAME,
-                                input_size_dpu_8bytes * sizeof(T), // we need an offset to place it behind the X section
-                                input_size_dpu_8bytes * sizeof(T),
-                                DPU_XFER_ASYNC));
-        DPU_ASSERT(dpu_sync(dpu_set));
-
 #endif
+
+# ifdef DEBUG
+        // compaer arrays after pushing to the dpus
+        fprintf(stderr, "\n");
+        for (unsigned int j = 0; j < input_size; ++j) {
+            if (X_host[i] != X[i]) {
+                debug_check = false;
+            }
+        }
+        if (!debug_check) {
+            fprintf(stderr, "[host]error: arrays are unequal after pushing to the DPUs!\n");
+            for (unsigned int j = 0; j < input_size; ++j) {
+                if (X_host[i] != X[i]) {
+                    fprintf(stderr, "%i: %i -- %i\n", j, X_host[j], X[j]);
+                }
+            }
+            exit(1);
+        }
+#endif // DEBUG
+
         if(rep >= p.n_warmup)
             stop(&timer, 1); // Stop timer (CPU-DPU transfers)
 		
@@ -262,14 +240,14 @@ int main(int argc, char **argv) {
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
             // DPU_ASSERT(dpu_log_read(dpu, stderr));
-            DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
+            DPU_ASSERT(dpu_prepare_xfer(dpu, &X[i * input_size_dpu_8bytes]));
         }
         // push the buffers to the DPUs
         DPU_ASSERT(dpu_push_xfer(dpu_set,
                                 DPU_XFER_FROM_DPU,
                                 DPU_MRAM_HEAP_POINTER_NAME,
-                                input_size_dpu_8bytes * sizeof(T),
-                                input_size_dpu_8bytes * sizeof(T), // we need an offset to place it behind the X section
+                                0,
+                                sizeof(T),
                                 DPU_XFER_DEFAULT));
 
 #else // Parallel transfers
@@ -277,21 +255,27 @@ int main(int argc, char **argv) {
         // prepare the buffers to recieve Y from the DPUs
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
-            // DPU_ASSERT(dpu_log_read(dpu, stderr));
-            DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * input_size_dpu_8bytes]));
+            DPU_ASSERT(dpu_log_read(dpu, stderr));
+            DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * 8]));
+            // DPU_ASSERT(dpu_prepare_xfer(dpu, &X[i * 8]));
         }
         // push the buffers to the DPUs
         DPU_ASSERT(dpu_push_xfer(dpu_set,
                                 DPU_XFER_FROM_DPU,
                                 DPU_MRAM_HEAP_POINTER_NAME,
-                                input_size_dpu_8bytes * sizeof(T),
-                                input_size_dpu_8bytes * sizeof(T), // we need an offset to place it behind the X section
+                                0,
+                                8,
                                 DPU_XFER_ASYNC));
         DPU_ASSERT(dpu_sync(dpu_set));
 
 #endif
         if(rep >= p.n_warmup)
             stop(&timer, 3); // Stop timer (DPU-CPU transfers)
+
+        // build the overall sum from the retrived data
+        for (i = 1; i < nr_of_dpus; ++i) {
+            Y[0] += Y[i];
+        }
 
 #if defined(CYCLES) || defined(INSTRUCTIONS)
         dpu_results_t results[nr_of_dpus];
@@ -347,12 +331,17 @@ int main(int argc, char **argv) {
 
     // Check output
     bool status = true;
-    for (i = 0; i < input_size; i++) {
-        if(Y_host[i] != Y[i]){ 
-            status = false;
-            printf("%d: %u -- %u\n", i, Y_host[i], Y[i]);
-        }
+    printf("\n");
+    if(Y_host[0] != Y[0]){ 
+        status = false;
+        printf("%d: %u -- %u\n", 0, Y_host[0], Y[0]);
     }
+    // for (i = 0; i < input_size; i++) {
+    //     if(X_host[0] != X[0]){ 
+    //         status = false;
+    //         printf("%d: %u -- %u\n", i, X_host[i], X[i]);
+    //     }
+    // }
     if (status) {
         printf("[" ANSI_COLOR_GREEN "OK" ANSI_COLOR_RESET "] Outputs are equal\n");
     } else {
@@ -361,8 +350,7 @@ int main(int argc, char **argv) {
 
     // Deallocation
     free(X);
-    free(Y);
-    free(Y_host);
+    free(X_host);
     DPU_ASSERT(dpu_free(dpu_set)); // Deallocate DPUs
 	
     return status ? 0 : -1;
