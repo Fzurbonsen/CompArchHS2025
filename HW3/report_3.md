@@ -37,4 +37,4 @@ In my opinion the paper provides an important perspective on the problem of RowP
 ## Takeaways
 - RowPress induced read disturbance is an important issue that needs addressing in modern DRAM chips.
 
-- The issue of RowPress (as well as RowHammer and retention time) gets worse with smaller technologies. 
+- The issue of RowPress (as well as RowHammer and retention time) gets worse with smaller technologies. Therfore it is important to address these issues in modern systems and keep loking for possible attack vectors of malicious actors in modern computer systems.
