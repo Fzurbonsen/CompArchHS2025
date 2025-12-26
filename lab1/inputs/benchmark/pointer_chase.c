@@ -1,7 +1,7 @@
 #include "stdio.h"
 #include <stdint.h>
 
-#define NUM_NODES (32 * 1024)
+#define NUM_NODES (64 * 1024)
 #define CHASE_COUNT 100000
 
 int main() {
