@@ -17,8 +17,8 @@
 
 
 // select only one of the cache types:
-// #define LRU_CACHE
-#define FIFO_CACHE
+#define LRU_CACHE
+// #define FIFO_CACHE
 // #define RANDOM_CACHE
 
 // function to init data cache
