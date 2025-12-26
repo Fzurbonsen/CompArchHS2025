@@ -74,7 +74,7 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
 
 
 // function to unstall L1 cache and set the valid in the handshake
-static void l1_cache_end_stall(cache_t* cache, int8_t valid, uint64_t cycle) {
+static void l1_cache_end_stall(cache_t* cache, int8_t valid) {
     cache->is_stall = 0;
     cache->valid = valid;
 }
@@ -89,7 +89,7 @@ static void l1_cache_set_stall(cache_t* cache, uint64_t cycle, uint32_t is_stall
         cache->stall_start_cycle = cycle;
         return;
     }
-    l1_cache_end_stall(cache, 1, cycle);
+    l1_cache_end_stall(cache, 1);
     return;
 }
 
@@ -204,7 +204,9 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
 
     // insert the new block
     set[victim].tag = tag;
-    set[victim].valid = 1;
+    set[victim].valid = 1; // this is not "realistic" in the sense that an entry is imediately labeld as valid.
+                           // This works for the basic simulator but not for a more complex system.
+    // set[victim].valid = 0;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     mem_con_access(mem_con, mshr_idx);
@@ -266,7 +268,9 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 
     // insert the new block
     set[victim].tag = tag;
-    set[victim].valid = 1;
+    set[victim].valid = 1; // this is not "realistic" in the sense that an entry is imediately labeld as valid.
+                           // This works for the basic simulator but not for a more complex system.
+    // set[victim].valid = 0;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
 
     l2_cache_access(in, l2_cache, cache, mem_con);
@@ -286,7 +290,7 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 // function to update an l1 cache
 void l1_cache_update(cache_t* cache, uint64_t cycle) {
     if (cache->is_stall == 1 && cache->stall_start_cycle + L2_CACHE_HIT_STALL_TIME == cycle) {
-        l1_cache_end_stall(cache, 1, cycle);
+        l1_cache_end_stall(cache, 1);
     }
 }
 
@@ -302,10 +306,10 @@ void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_
         if (mshr->done) {
             // check the origin
             if (mshr->type == ICACHE) {
-                l1_cache_end_stall(icache, 1, mem_con->cycle);
+                l1_cache_end_stall(icache, 1);
             }
             if (mshr->type == DCACHE) {
-                l1_cache_end_stall(dcache, 1, mem_con->cycle);
+                l1_cache_end_stall(dcache, 1);
             }
 
             clear_mshr(mshr);
@@ -335,7 +339,7 @@ void cache_flush(cache_t* cache) {
                 break;
             }
         }
-        l1_cache_end_stall(cache, 0, 0);
+        l1_cache_end_stall(cache, 0);
     }
 }
 
