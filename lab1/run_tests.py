@@ -113,7 +113,7 @@ def main():
     all_inputs = glob.glob("inputs/*/*.x")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("inputs", nargs="*", default=all_inputs)
+    parser.add_argument("--inputs", nargs="*", default=all_inputs)
     parser = parser.parse_args()
 
     # generate paramters for parameter sweep
@@ -126,9 +126,13 @@ def main():
 
     total_parameters = []
 
-    for param_IC in parameters:
-        for param_DC in parameters:
-            total_parameters.append(param_IC + param_DC)
+    # for param_IC in parameters:
+    #     for param_DC in parameters:
+    #         total_parameters.append(param_IC + param_DC)
+    
+    # secondary version (maximal IC to test DC)
+    for param_DC in parameters:
+        total_parameters.append(parameters[-1] + param_DC)
 
     for param in total_parameters:
         print(param)
@@ -206,6 +210,8 @@ def run(i, parameters):
     if s_err:
         print("\n--- ./sim stderr ---")
         print(s_err.decode('utf-8'))
+        
+    print(s.decode('utf-8'))
 
     return filter_stats(filter_stats(s.decode('utf-8')))
 
