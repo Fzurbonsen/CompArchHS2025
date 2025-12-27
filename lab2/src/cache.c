@@ -37,6 +37,7 @@ cache_t* cache_init(int n_sets, int n_ways, int tag_shift, int set_index_shift, 
     cache->set_index_off = set_index_off;
     cache->type = type;
     cache->valid = 0;
+    cache->victim_pointer = NULL;
     return cache;
 }
 
@@ -63,7 +64,7 @@ static int cache_update_lru(cache_block_t *set, uint32_t way, int lru, cache_t* 
     // iterate over all ways in the set and update their lru
     for (int i = 0; i < cache->n_ways; ++i) {
 
-        // if the lru is bigger then the current lru, i.e.it has been used more recently then we need to shift it
+        // if the lru is bigger then the current lru, i.e. it has been used more recently then we need to shift it
         if (set[i].valid && set[i].lru > lru)
             set[i].lru--;
     }
@@ -178,7 +179,7 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
             fprintf(stderr, "\t| %i\t| %i\t| %i\t| %u\n", i, l2_mshr[i].done, l2_mshr[i].valid, l2_mshr[i].address);
             fprintf(stderr, "\t----------------------------------\n");
         }
-        fprintf(stderr, "Error occured in function cache.c/static int l2_cache_stall(uint32_t in, cache_t* cache)\n");
+        fprintf(stderr, "Error occured in function cache.c/static int l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_con_t* mem_con)\n");
         exit(1);
     }
 
@@ -204,10 +205,14 @@ static void l2_cache_access(uint32_t in, cache_t* cache, cache_t* l1_cache, mem_
 
     // insert the new block
     set[victim].tag = tag;
-    set[victim].valid = 1; // this is not "realistic" in the sense that an entry is imediately labeld as valid.
-                           // This works for the basic simulator but not for a more complex system.
-    // set[victim].valid = 0;
+    set[victim].valid = 0;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
+
+    // check if this access is already stalling the cache
+    if (cache->victim_pointer == &(set[victim]))
+        return;
+
+    cache->victim_pointer = &(set[victim]);
 
     mem_con_access(mem_con, mshr_idx);
     l1_cache_set_stall(l1_cache, mem_con->cycle, L2_CACHE_MISS_STALL, in);
@@ -268,10 +273,13 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 
     // insert the new block
     set[victim].tag = tag;
-    set[victim].valid = 1; // this is not "realistic" in the sense that an entry is imediately labeld as valid.
-                           // This works for the basic simulator but not for a more complex system.
-    // set[victim].valid = 0;
+    set[victim].valid = 0;
     set[victim].lru = cache_update_lru(set, victim, 0, cache);
+
+    // check if this access is alredy stalling the cache
+    if (cache->victim_pointer == &(set[victim]))
+        return;
+    cache->victim_pointer = &(set[victim]);
 
     l2_cache_access(in, l2_cache, cache, mem_con);
     return;
@@ -291,6 +299,10 @@ static void l1_cache_access(cache_t* cache, cache_t* l2_cache, mem_con_t* mem_co
 void l1_cache_update(cache_t* cache, uint64_t cycle) {
     if (cache->is_stall == 1 && cache->stall_start_cycle + L2_CACHE_HIT_STALL_TIME == cycle) {
         l1_cache_end_stall(cache, 1);
+        if (cache->victim_pointer != NULL) {
+            cache->victim_pointer->valid = 1;
+            cache->victim_pointer = NULL;
+        }
     }
 }
 
@@ -307,11 +319,25 @@ void l2_cache_update(cache_t* cache, mem_con_t* mem_con, cache_t* icache, cache_
             // check the origin
             if (mshr->type == ICACHE) {
                 l1_cache_end_stall(icache, 1);
+                if (cache->victim_pointer != NULL) {
+                    cache->victim_pointer->valid = 1;
+                    cache->victim_pointer = NULL;
+                    icache->victim_pointer->valid = 1;
+                    icache->victim_pointer = NULL;
+                }
             }
             if (mshr->type == DCACHE) {
                 l1_cache_end_stall(dcache, 1);
+                if (cache->victim_pointer != NULL) {
+                    cache->victim_pointer->valid = 1;
+                    cache->victim_pointer = NULL;
+                    dcache->victim_pointer->valid = 1;
+                    dcache->victim_pointer = NULL;
+                }
             }
+            
 
+            // fprintf(stderr, "valid set to 1\n");
             clear_mshr(mshr);
         }
     }

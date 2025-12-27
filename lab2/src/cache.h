@@ -30,6 +30,7 @@ typedef struct {
     cache_type_e type;
     cache_block_t* blocks;
     int8_t valid; // indicator wether the cache output is valid
+    cache_block_t* victim_pointer; // when the cache is in a stall then this pointer points to the block that caused the stall
     int8_t is_stall; // indicator whether the cache is stalled:
                      // 0: no stall
                      // 1: L2 hit stall
