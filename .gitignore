@@ -21,5 +21,8 @@ lab3/problem/task4/bin/*
 lab3/problem/task4/*.conf
 lab3/problem/task4/*.log
 
+lab5/build/*
+lab5/*.trace
+
 *slurm*
 *.vscode
