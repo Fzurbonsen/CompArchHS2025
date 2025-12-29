@@ -9,6 +9,31 @@
 
 namespace Ramulator {
 
+// function to add a controller to the ATLAS meta controller
+void ATLASMetaController::add_controller() {
+  n_controllers++;
+}
+
+// function to transmit local attained service from the controllers to
+// the meta controller.
+void ATLASMetaController::transmit_as(std::map<int, double> local_as) {
+  // store local as in the buffer
+  for (const auto& [key, as] : local_as) {
+    as_buffer[key] += as;
+  }
+
+  n_transmitted++;
+
+  // wait for all controllers to transmit their data so we can update
+  // the thread ranking
+  if (n_transmitted < n_controllers)
+    return;
+
+  update_ranking();
+  as_buffer.clear();
+  n_transmitted = 0;
+}
+
 // function to update the ranking map in the memory controller
 void ATLASMetaController::update_ranking(){
 
@@ -43,6 +68,13 @@ void ATLASMetaController::update_ranking(){
   for (const auto& [key, as] : sorted_threads) {
     ranking[key] = rank++;
   }
+}
+
+// function to get the rank of a thread
+int ATLASMetaController::get_thread_rank(int thread) {
+  if (ranking.find(thread) == ranking.end())
+    return 2147483647;
+  return ranking[thread];
 }
 
 } // namespace Ramulator

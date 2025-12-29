@@ -23,7 +23,7 @@ namespace Ramulator {
 // MetaController to handle attained service management and thread ranking
 struct ATLASMetaController {
 
-  Clk_t clk;
+  Clk_t m_clk;
 
   // total attained service for each thread
   std::map<int, double> total_as;
@@ -34,7 +34,16 @@ struct ATLASMetaController {
   // incoming as from the threads
   std::map<int, double> as_buffer;
 
+  int n_controllers = 0;
+  int n_transmitted = 0;
+
+  void add_controller();
+
+  void transmit_as(std::map<int, double> local_as);
+
   void update_ranking();
+
+  int get_thread_rank(int thread);
 };
 
 // link global meta controller

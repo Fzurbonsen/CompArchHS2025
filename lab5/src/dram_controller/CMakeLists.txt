@@ -27,6 +27,7 @@ target_sources(
   impl/plugin/twice.cpp
   impl/plugin/hydra.cpp
   impl/plugin/rrs.cpp
+  impl/plugin/atlas_plugin.cpp
 
   )
 
