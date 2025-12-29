@@ -9,9 +9,12 @@ target_sources(
 
   impl/dummy_controller.cpp
   impl/generic_dram_controller.cpp
+
+  impl/atlas_meta_controller.cpp
   
   impl/scheduler/generic_scheduler.cpp
   impl/scheduler/fcfs_scheduler.cpp
+  impl/scheduler/atlas_scheduler.cpp
 
   impl/refresh/all_bank_refresh.cpp
 
