@@ -23,6 +23,7 @@ lab3/problem/task4/*.log
 
 lab5/build/*
 lab5/*.trace
+lab5/*.so
 
 *slurm*
 *.vscode

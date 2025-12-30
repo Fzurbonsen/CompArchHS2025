@@ -15,6 +15,7 @@ target_sources(
   impl/scheduler/generic_scheduler.cpp
   impl/scheduler/fcfs_scheduler.cpp
   impl/scheduler/atlas_scheduler.cpp
+  impl/scheduler/bliss_scheduler.cpp
 
   impl/refresh/all_bank_refresh.cpp
 
@@ -28,6 +29,7 @@ target_sources(
   impl/plugin/hydra.cpp
   impl/plugin/rrs.cpp
   impl/plugin/atlas_plugin.cpp
+  impl/plugin/bliss_plugin.cpp
 
   )
 
