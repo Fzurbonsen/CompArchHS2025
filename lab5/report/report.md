@@ -133,11 +133,19 @@ The updating of the blacklist is managed by the individual controllers and imple
 
 The actual scheduler implementation is found in `bliss_scheduler.cpp`. The scheduler has access to the blacklists given tracked in the global BLISS states. It schedules the memory based on the priorities described in the paper[@bliss].
 
+\newpage
+
 ## Task 4: valuating ATLAS and BLISS and Comparing Them to Conventional Memory Scheduling Policies
 
-![Instruction throughput for all workloads, 1 high 3 low (1H-3L), 2 high 2 low (2H-2L), 4 high (4H), and 8 high (8H), and the four schedulers respectively, FCFS, FR-FCFS, ATLASS, and BLISS.](img/instruction_throughput.eps)
+![Instruction throughput for all workloads, 1 high 3 low (1H-3L), 2 high 2 low (2H-2L), 4 high (4H), and 8 high (8H), and the four schedulers respectively, FCFS, FR-FCFS, ATLASS, and BLISS.](img/instruction_throughput.png)
 
-In Figure 1. we see the instruction throughput of the different schedulers with different workloads. There is a clear difference between mixed workloads (1H-3L, 2H-2L) and uniform workloads (4H, 8H). The mixed-workloads show a higher instruction throughput than the mixed workloads, but within both groups the relative performance between the different schedulers is fairly similar. This discrepancy can simply be explained by over-all memory usage. If we include low intensity threads then the memory access rate is lower which leads to higher performance as memory is less likely to become a bottleneck.
+Figure 1. shows the instruction throughput of the different schedulers with different workloads. There is a clear difference between mixed workloads (1H-3L, 2H-2L) and uniform workloads (4H, 8H). The mixed-workloads show a higher instruction throughput than the mixed workloads, but within both groups the relative performance between the different schedulers is fairly similar. This discrepancy can simply be explained by over-all memory usage. If we include low intensity threads then the memory access rate is lower which leads to higher performance as memory is less likely to become a bottleneck.
 In the mixed workloads FR-FCFS, ATLAS, and BLISS perform similarly while FCFS performs much worse. This can be explained through the inherent inefficiencies in FCFS scheduling already outlined in Task 1, Question 5. For the uniform workloads we see that while FCFS still performs the wors, there is a sginificant gap between the performance of ATLAS and FR-FCFS or BLISS. This can be explained by the inherent weakness of BLISS. In high workload conditions BLISS will choose one thread as the highest priority. This leads to this thread attaining more service which agian increases its priority. This is a self fulfilling prophecy which effectively serializes the memory accesses. FR-FCFS and BLISS avoid this as FR-FCFS schedules only based on the state of the memory and in a second priority the arrival time, and BLISS will cycle through all requesting threads but once they are all blacklisted will also fall back to FR-FCFS untill it resets the blacklists.
 
-![Maximum slowdown]
+\newpage
+
+![Maximum slowdown for all workloads, 1 high 3 low (1H-3L), 2 high 2 low (2H-2L), 4 high (4H), and 8 high (8H), and the four schedulers respectively, FCFS, FR-FCFS, ATLASS, and BLISS.](img/maximum_slowdown.png)
+
+Figure 2. shows the maximum slowdown of the different schedulers with different workloads. With increasing total workload a clear increase in maximum slowdown can be seen. In general we can see that FCFS shows worse maximum slowdown than FR-FCFS and BLISS. This is expected as FCFS has inherent inefficiencies which are explained in Task 1 Question 5. The suprising outlier is ATLAS which shows very bad performance in the uniform workloads, but even for the higher intensity mixed workload it shows the worst performance of all the schedulers. This can again be explained with the prioritization of a single thread by ATLAS in the case of a high workload. This causes the thread that gets the lowest priority at the beggining of a high instensity section of the runtime to be almost starved, i.e. it will only be serviced when the threshold is reached. This causes the performance of this particular thread to be canibalized by the other threads.
+
+## References
