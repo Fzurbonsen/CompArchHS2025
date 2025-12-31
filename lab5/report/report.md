@@ -1,6 +1,6 @@
 # Report Lab 5: Memory Request Scheduling
 
-## Task 1
+## Task 1: Getting Your Hands on Ramulator 2 
 
 ### Questions
 
@@ -59,4 +59,85 @@ FR-FCFS stands for First-Ready First-Come-First-Served. This means that the top 
 
 From the table we can clearly see that FR-FCFS performs a lot better than FCFS. This makes intuitive sense as memory commands can only be serviced when they are ready but FCFS sometimes prioritizes a command that is ready later but arrived eralier than another command. FR-FCFS addresses precisely this issue and the impact can clearly be seen in the data.
 
----
+## Task 2: Implementing ATLAS
+
+### Structures
+
+ATLAS uses a single meta-controller to cooridnate the collection of the attained service of each thread and to rank the threads. To realise this the meta-controller is defined in the `atlas_meta_controller.h`:
+
+```
+// MetaController to handle attained service management and thread ranking
+struct ATLASMetaController {
+
+  Clk_t m_clk;
+
+  // total attained service for each thread
+  std::map<int, double> total_as;
+
+  // rankin of the threads (lower number -> higher priority)
+  std::map<int, int> ranking;
+
+  // incoming as from the threads
+  std::map<int, double> as_buffer;
+
+  int n_controllers = 0;
+  int n_transmitted = 0;
+
+  void add_controller();
+
+  void transmit_as(std::map<int, double> local_as);
+
+  void update_ranking();
+
+  int get_thread_rank(int thread);
+};
+```
+
+The implementations of the meta-controller is given in the file `atlas_meta_controller.cpp`. The meta-controller provides two main functions.
+
+`void transmit_as(std::map<int, double> local_as);`: This function is the interface between the individual controllers and the meta-controller. It allows the individual controllers to transmit their local attained service to the meta controller.
+
+`void udpate_ranking();`: This function implements the main functionality of the meta-controller. It is called when at the end of a qunatum all controllers have transmitted their local attained service. The meta-controller then updated the total accumulated service for each thread and ranks according to Rule 2 in the paper[@atlas].
+
+The meta-controller exists as a globally shared struct which is initialized within the scope of the scheduler.
+
+### Controller-Side
+
+The updating of the local attained service and transmitting to the meta-controller for each controller is handled within a plugin implemented in `atlas_plugin.cpp`. The plugin keeps track of the bank ownership of the different threads and uses it to calculate their attained service. The plugin also tracks when a quantum has passed and then transmitts the controllers local attained service to the meta-controller.
+
+### Scheduler
+
+The actual scheduler implementation is found in `atlas_scheduler.cpp`. The scheduler has access to the meta-controllers rankings and uses them to schedule the memory accesses according to Rule 1 from the paper[@atlas].
+
+## Task 3: Implementing BLISS 
+
+### Structures
+
+BLISS keeps a global state to track the blacklisted threads. This global state is defined in the file `bliss_state.h` as:
+
+```
+struct BLISSState {
+  int last_source_id = -1; // field to store the last thread
+  int request_counter = 0; // counter to hold consecutive requests
+  std::set<int> blacklist; // blacklist holding the blacklisted threads
+  int clearing_counter = 0; // counter to hold keep track of blacklist clearing
+};
+```
+The global BLISS state exists as a globally shared map of `BLISSState` structs with the respective channel as its key. This map is initialized within the scope of the scheduler.
+
+### Controller-Side
+
+The updating of the blacklist is managed by the individual controllers and implemented within in a plugin in `bliss_plugin.cpp`. This plugin tracks the consecutive memory accesses of threads and blacklists them if they exceed a threshold. The plugin is also responsible for clearing the blacklists at the end of each interval.
+
+### Scheduler
+
+The actual scheduler implementation is found in `bliss_scheduler.cpp`. The scheduler has access to the blacklists given tracked in the global BLISS states. It schedules the memory based on the priorities described in the paper[@bliss].
+
+## Task 4: valuating ATLAS and BLISS and Comparing Them to Conventional Memory Scheduling Policies
+
+![Instruction throughput for all workloads, 1 high 3 low (1H-3L), 2 high 2 low (2H-2L), 4 high (4H), and 8 high (8H), and the four schedulers respectively, FCFS, FR-FCFS, ATLASS, and BLISS.](img/instruction_throughput.eps)
+
+In Figure 1. we see the instruction throughput of the different schedulers with different workloads. There is a clear difference between mixed workloads (1H-3L, 2H-2L) and uniform workloads (4H, 8H). The mixed-workloads show a higher instruction throughput than the mixed workloads, but within both groups the relative performance between the different schedulers is fairly similar. This discrepancy can simply be explained by over-all memory usage. If we include low intensity threads then the memory access rate is lower which leads to higher performance as memory is less likely to become a bottleneck.
+In the mixed workloads FR-FCFS, ATLAS, and BLISS perform similarly while FCFS performs much worse. This can be explained through the inherent inefficiencies in FCFS scheduling already outlined in Task 1, Question 5. For the uniform workloads we see that while FCFS still performs the wors, there is a sginificant gap between the performance of ATLAS and FR-FCFS or BLISS. This can be explained by the inherent weakness of BLISS. In high workload conditions BLISS will choose one thread as the highest priority. This leads to this thread attaining more service which agian increases its priority. This is a self fulfilling prophecy which effectively serializes the memory accesses. FR-FCFS and BLISS avoid this as FR-FCFS schedules only based on the state of the memory and in a second priority the arrival time, and BLISS will cycle through all requesting threads but once they are all blacklisted will also fall back to FR-FCFS untill it resets the blacklists.
+
+![Maximum slowdown]

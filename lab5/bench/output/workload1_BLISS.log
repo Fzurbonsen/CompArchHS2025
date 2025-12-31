@@ -1,0 +1,52 @@
+[Ramulator::SimpleO3] [info] Processor Heartbeat 10000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 20000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 30000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 40000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 50000000 cycles.
+Frontend:
+  impl: SimpleO3
+  memory_access_cycles_recorded_core_3: 18783416
+  cycles_recorded_core_3: 51726866
+  llc_eviction: 1933883
+  llc_write_access: 342711
+  llc_write_misses: 340812
+  memory_access_cycles_recorded_core_2: 187834
+  llc_read_access: 1603238
+  llc_read_misses: 1597284
+  llc_mshr_unavailable: 90
+  instructions_retired_core_3: 20000001
+  cycles_recorded_core_2: 5516212
+  instructions_retired_core_0: 186969776
+  cycles_recorded_core_0: 5521017
+  instructions_retired_core_2: 186988267
+  memory_access_cycles_recorded_core_0: 189409
+  num_expected_insts: 20000000
+  instructions_retired_core_1: 186995403
+  memory_access_cycles_recorded_core_1: 185330
+  cycles_recorded_core_1: 5508340
+  Translation:
+    impl: RandomTranslation
+
+
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 341596
+  total_num_read_requests: 1937977
+  memory_system_cycles: 19397575
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+  Controller:
+    impl: Generic
+    id: Channel 0
+    Scheduler:
+      impl: BLISS
+    RefreshManager:
+      impl: AllBank
+    ControllerPlugin:
+      impl: BLISSPlugin
+
+
+

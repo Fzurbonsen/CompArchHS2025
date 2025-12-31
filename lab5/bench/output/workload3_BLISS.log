@@ -1,0 +1,62 @@
+[Ramulator::SimpleO3] [info] Processor Heartbeat 10000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 20000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 30000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 40000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 50000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 60000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 70000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 80000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 90000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 100000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 110000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 120000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 130000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 140000000 cycles.
+[Ramulator::SimpleO3] [info] Processor Heartbeat 150000000 cycles.
+Frontend:
+  impl: SimpleO3
+  memory_access_cycles_recorded_core_3: 50035292
+  cycles_recorded_core_3: 155729151
+  llc_eviction: 7880004
+  llc_write_access: 25233105
+  llc_write_misses: 25232882
+  memory_access_cycles_recorded_core_2: 51024376
+  llc_read_access: 107029850
+  llc_read_misses: 107022250
+  llc_mshr_unavailable: 124370905
+  instructions_retired_core_3: 20000003
+  cycles_recorded_core_2: 143945898
+  instructions_retired_core_0: 23175172
+  cycles_recorded_core_0: 135114618
+  instructions_retired_core_2: 21985110
+  memory_access_cycles_recorded_core_0: 48919405
+  num_expected_insts: 20000000
+  instructions_retired_core_1: 22950163
+  memory_access_cycles_recorded_core_1: 49714422
+  cycles_recorded_core_1: 137407266
+  Translation:
+    impl: RandomTranslation
+
+
+MemorySystem:
+  impl: GenericDRAM
+  total_num_other_requests: 0
+  total_num_write_requests: 1430305
+  total_num_read_requests: 7884088
+  memory_system_cycles: 58398432
+  DRAM:
+    impl: DDR4
+  AddrMapper:
+    impl: RoBaRaCoCh
+  Controller:
+    impl: Generic
+    id: Channel 0
+    Scheduler:
+      impl: BLISS
+    RefreshManager:
+      impl: AllBank
+    ControllerPlugin:
+      impl: BLISSPlugin
+
+
+
