@@ -4,7 +4,7 @@ geometry:
   - letterpaper
 papersize: a4
 author: "Frederic zur Bonsen (fzurbonsen@ethz.ch)"
-date: "11.2025"
+date: "01.2026"
 header-includes: |
   \usepackage{fancyhdr}
   \usepackage{lastpage}

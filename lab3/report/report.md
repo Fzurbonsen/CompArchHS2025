@@ -24,7 +24,7 @@ In the second task we are asked to write a DPU kernel taht executes the `AXPY` o
 
 The `AXPY` operation was implemented as a simple function in the DPU kernel.
 
-```
+```c
 // AXPY: Computes AXPY for a cached block 
 static void axpy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
     for (unsigned int i = 0; i < l_size; ++i) {
@@ -48,7 +48,7 @@ In the third task we are asked to extend the implementation from task 2 to also 
 
 Task 3 is an extension of task 2. It adds sections for the different operation types which are multiplexed via a compiler flag.
 
-```
+```c
 // AXMINY: Computes AXMINY for a cached block
 static void axminy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
     for (unsigned int i = 0; i < l_size; ++i) {
@@ -75,7 +75,7 @@ static void axdivy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
 }
 ```
 
-```
+```c
 #if defined(AXPY)
         axpy(wram_y, wram_x, alpha, (unsigned int)(mem_access_size / sizeof(T)));
 #elif defined(AXMINY)
@@ -103,7 +103,7 @@ In the fourth task we are asked to perform parallel reductions in the DPU kernel
 
 The four approaches can easily be implemented using the handshake, barrier, and mutex functionality provided for the DPU kernel. The vector reduction algorithm chosen is a simple vector sum algorithm that is executed on each tasklet to compute the sum over its allocated vector. This final result then has to be collected across all tasklets.
 
-```
+```c
 // VEC_RED: compute VEC_RED of a cached block
 static void vec_red(T* bufferX, unsigned int l_size, unsigned int tasklet_id) {
     for (unsigned int i = 0; i < l_size; ++i) {
@@ -115,7 +115,7 @@ static void vec_red(T* bufferX, unsigned int l_size, unsigned int tasklet_id) {
 
 The first implementation uses a barrier to wait for all tasklets to finish executing and then lets the zero-tasklet collect all the values and perform the final vector reduction.
 
-```
+```c
 // 0-tasklet collection
 static T red_zero_tasklet_collection(unsigned int tasklet_id) {
 
@@ -135,7 +135,7 @@ static T red_zero_tasklet_collection(unsigned int tasklet_id) {
 
 The tree-based approach with barriers performs a reduction where successively neighbouring tasklets combine their results. The decision as to which tasklet does the reduction steps is managed through a predetermined hierarchy given by the tasklet-id. The core idea is to wait at the end of each level of the tree to let all tasklets finish before continuing to the next level.
 
-```
+```c
 // barrier case:
 static T red_tree_based_barriers(unsigned int tasklet_id) {
 
@@ -161,7 +161,7 @@ static T red_tree_based_barriers(unsigned int tasklet_id) {
 
 The tree-based approach with handshakes works very similarly to the previous approach. But now instead of having to wait for all tasklets to complete their exectution before going to the next level of the tree, each tasklet only has to wait for its imidiate next neighbour before being able to continue the reduction.
 
-```
+```c
 // handshake case:
 static T red_tree_based_handshakes(unsigned int tasklet_id) {
     // find neighbouring tasklets
@@ -184,7 +184,7 @@ static T red_tree_based_handshakes(unsigned int tasklet_id) {
 
 The mutex implementation is the simlest. We have one shared reduction value which is locked behind a mutex so each tasklet, accesses the value when it is done with its computation, deposits its part of the reduction and then vacates the mutex again.
 
-```
+```c
 // mutex case:
 static T red_mutex(unsigned int tasklet_id) {
 
