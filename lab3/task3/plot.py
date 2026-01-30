@@ -19,7 +19,6 @@ sns.barplot(
 )
 
 # Customize plot
-plt.title("Instructions per Variable Type grouped by Operation")
 plt.xlabel("Variable Type")
 plt.ylabel("Number of Instructions")
 plt.grid(True, linestyle="--", alpha=0.4)

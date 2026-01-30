@@ -65,7 +65,6 @@ def plot_instructions_per_tasklet(data: Dict[int, List[Tuple[int, int]]]):
 
     ax.set_xlabel("Number of Tasklets")
     ax.set_ylabel("Instructions per Tasklet")
-    ax.set_title("Instructions per Tasklet vs Number of Tasklets for Different DPUs")
     ax.grid(True, linestyle="--", alpha=0.4)
     ax.legend(fontsize="small")
     fig.tight_layout()

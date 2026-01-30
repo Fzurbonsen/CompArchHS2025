@@ -137,8 +137,8 @@ def print_to_csv(nr_dpus, nr_tasklets, transfer_types, input_sizes, variable_typ
 
 def main():
     nr_dpus = [16]
-    nr_tasklets = [i for i in range(1, 25)]
-    # nr_tasklets = [1]
+    # nr_tasklets = [i for i in range(1, 25)]
+    nr_tasklets = [1]
     transfer_types = ["PARALLEL"]
     input_sizes = [16 * 128, 1 * 16384, 16 * 16384]
     # input_sizes = [16 * 128]
