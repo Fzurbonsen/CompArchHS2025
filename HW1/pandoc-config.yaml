@@ -1,11 +1,16 @@
 ---
-geometry: margin=1in
-documentclass: article
-classoption: twocolumn
-header-includes:
-  - \usepackage{fancyhdr}
-  - \pagestyle{fancy}
-  - \fancyhf{}
-  - \fancyhead[C]{\footnotesize Frederic zur Bonsen -- 10.2025}
-  - \renewcommand{\headrulewidth}{0pt}
+geometry:
+  - margin=0.75in
+  - letterpaper
+papersize: a4
+author: "Frederic zur Bonsen (fzurbonsen@ethz.ch)"
+date: "01.2026"
+header-includes: |
+  \usepackage{fancyhdr}
+  \usepackage{lastpage}
+  \pagestyle{fancy}
+  \fancyhead[L]{Frederic zur Bonsen (fzurbonsen@ethz.ch)}
+  \fancyhead[C]{}
+  \fancyhead[R]{\thepage/\pageref{LastPage}}
+  \fancyfoot[C]{}
 ---

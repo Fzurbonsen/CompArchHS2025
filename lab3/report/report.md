@@ -4,21 +4,21 @@
 
 In this lab we are asked to program the UPMEM PIM architecture for several workloads. We are asked to benchmark the system performance under different configurations, and to both evaluate and analyse the results.
 
-## Task 1: Transfering Data between Main Memory and PIM-enabled Memory
+## Task 1: Transferring Data between Main Memory and PIM-enabled Memory
 
 In the first task we are asked to get familiar with the different types of data transfers between the host main memory and the PIM-enabled memory. There are three different types of data transfers `SERIAL`, `PARALLEL`, and `BROADCAST`. `SERIAL` and `PARALLEL` handle data transfer both from CPU to DPUs and DPUs to CPU. `BROADCAST` can only transfer data from the CPU to DPUs so it is unidirectional. 
 
-In Fig~1 We see the memory bandwidth performance of the different transfer types under different loads and DPU counts. The provided data is an average of ten runs which were run with the same configuration, as the performance showed significant variance over different runs and on different devices. We can clearly see that the different input sizes separate the different paths. Within these paths there is no clear distinction between the different transfer types. We can also clearly see that with increasing number of DPUs the bandwidth worsens. The performance loss is roughly 1 divided by the number of DPUs in the case of DPU to CPU transfer. In the case of CPU to DPU transfer we first see a sharp rise and then a roughly linear drop-off in performance that flattens out for high number of DPUs. It also has to be noted that the bandwidth of the DPU to CPU transfer is way bigger than that of the CPU to DPU transfer.
+In Fig~1 we can see the memory bandwidth performance of the different transfer types under different loads and DPU counts. The provided data is an average of ten runs which were run with the same configuration, as the performance showed significant variance over different runs and on different devices. We can clearly see that the different input sizes separate the different paths. Within these paths there is no clear distinction between the different transfer types. We can also clearly see that with increasing number of DPUs the bandwidth worsens. The performance loss is roughly 1 divided by the number of DPUs in the case of DPU to CPU transfer. In the case of CPU to DPU transfer we first see a sharp rise and then a roughly linear drop-off in performance that flattens out for high number of DPUs. It also has to be noted that the bandwidth of the DPU to CPU transfer is way bigger than that of the CPU to DPU transfer.
 
 This roughly matches what is to be expected from the transfers. The ~`1/N` drop-off makes sense as the CPU only has limited resources and needs to distribute them over `N` DPUs to handle the data handoff. One thing which contradicts the expectation is that the `BROADCAST` transfer type does not show different performance than the `SERIAL` and `PARALLEL` transfer type. The expectation was that `BROADCAST` would show better performance in the CPU to DPU transfer than the other transfer types, especially in the cases with a larger input size.
 
 The maximum bandwidth at one DPU for CPU to DPU transfer is ~35 MB/s and the maximum for DPU to CPU transfer ~2800 MB/s. The remarkable thing here again is the difference between the transfer directions. For 64 DPUs we get a maximum of ~22 MB/s for CPU to DPU transfer and ~420 MB/s for DPU to CPU. These values also follow the expectation.
 
-![Plots of the memory bandwidth for the CPU to DPU transfer(top) and DPU to CPU transfer(bottom) per number of DPUs. For the CPU to DPU transfer we see all three transfer types and for DPU to CPU transfer only the `SERIAL` and `PARALLEL`. Each configuration was run with input sizes of 1MB, 24MD, and 48MB.](img/lab3_task1_plot.png)
+![Plots of the memory bandwidth for the CPU to DPU transfer(top) and DPU to CPU transfer(bottom) per number of DPUs. For the CPU to DPU transfer we see all three transfer types and for DPU to CPU transfer only the `SERIAL` and `PARALLEL`. Each configuration was run with input sizes of 1MB, 24MB, and 48MB.](img/lab3_task1_plot.png)
 
 ## Task 2: AXPY
 
-In the second task we are asked to write a DPU kernel taht executes the `AXPY` operation on a vector and then to benchmark the kernels performance.
+In the second task we are asked to write a DPU kernel that executes the `AXPY` operation on a vector and then to benchmark the kernels performance.
 
 ### Implementation
 
@@ -36,13 +36,13 @@ static void axpy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
 ### Results
 
 
-In Fig~2 we see that the instrutctions per taskelt drop off at a rate of 1 divided by the number of tasklets for all different DPU counts. We also see that a doubling of the DPUs halves the number of instructions per tasklet. This is expected, as there is a set number of instructions that need to be processed which are now distributed over a number of DPUs and tasklets.
+In Fig~2 we see that the instructions per tasklet drop off at a rate of 1 divided by the number of tasklets for all different DPU counts. We also see that a doubling of the DPUs halves the number of instructions per tasklet. This is expected, as there is a set number of instructions that need to be processed, which are now distributed over a number of DPUs and tasklets.
 
-![Instructions per taskelt vs the number of tasklets for different DPU counts for the AXPY operation.](img/lab3_task2_plot.png)
+![Instructions per tasklet vs the number of tasklets for different DPU counts for the AXPY operation.](img/lab3_task2_plot.png)
 
 ## Task 3: Operations and Data Types
 
-In the third task we are asked to extend the implementation from task 2 to also include `AXMINY`(subtraction), `AXMUL>` (multiplication), and `AXDIVY` (division). And then benchmark the performance of the system on the different operations with different data types.
+In the third task we are asked to extend the implementation from task 2 to also include `AXMINY`(subtraction), `AXMULY` (multiplication), and `AXDIVY` (division). And then benchmark the performance of the system on the different operations with different data types.
 
 ### Implementation
 
@@ -89,15 +89,15 @@ static void axdivy(T *bufferY, T *bufferX, T alpha, unsigned int l_size) {
 
 ### Results
 
-Fig~3 shows the instruction count for the different types and operations. The two clear outliers are `FLOAT` and `DOUBLE` especially in the case of division we see a signifacnt increase in the number of instructinos. We also see that the number of instructions scales with the type size, `INT32` takes roughly halv as many instructions as `INT64`. Further we can see that `INT32` and `INT64` perform better than other types of the same size. The last observation we can make is that multiplication and division take more instructions than addition.
+Fig~3 shows the instruction count for the different types and operations. The two clear outliers are `FLOAT` and `DOUBLE` especially in the case of division we see a significant increase in the number of instructions. We also see that the number of instructions scales with the type size; `INT32` takes roughly half as many instructions as `INT64`. Further we can see that `INT32` and `INT64` perform better than other types of the same size. The last observation we can make is that multiplication and division take more instructions than addition.
 
-These results match the expectations. `DOUBLE` and `FLOAT` require floating point operations which are notoriously expensive, especially floating point division is known to come at a high performance cost which is clearly reflected in the data. The scaling with data type size is also clearly visible and makes sense as if we changed the number of inputs is kept constant so a smaller type will inherently need less instructinos. Further we also see that arithmetic operations work especially well on arithemtic types such as `INT32` and `INT64` which is also to be expected as systems are usually desinged to perform best on precisely these operations.
+These results match the expectations. `DOUBLE` and `FLOAT` require floating point operations which are notoriously expensive, especially floating point division is known to come at a high performance cost which is clearly reflected in the data. The scaling with data type size is also clearly visible and makes sense as if we changed the number of inputs is kept constant so a smaller type will inherently need less instructions. Further we also see that arithmetic operations work especially well on arithmetic types such as `INT32` and `INT64` which is also to be expected as systems are usually designed to perform best on precisely these operations.
 
 ![Plot of the instruction count for different data types and different operations.](img/lab3_task3_plot.png)
 
 ## Task 4: Vector Reduction
 
-In the fourth task we are asked to perform parallel reductions in the DPU kernel. We are asked to implement vector reduction with a single tasklet doing the reductio, a tree-based reduction using barriers, a tree-based reduction with handshakes and a reduction with mutexes. We are asked to evaluate the different approaches.
+In the fourth task we are asked to perform parallel reductions in the DPU kernel. We are asked to implement vector reduction with a single tasklet doing the reduction, a tree-based reduction using barriers, a tree-based reduction with handshakes and a reduction with mutexes. We are asked to evaluate the different approaches.
 
 ### Implementation
 
@@ -159,7 +159,7 @@ static T red_tree_based_barriers(unsigned int tasklet_id) {
 }
 ```
 
-The tree-based approach with handshakes works very similarly to the previous approach. But now instead of having to wait for all tasklets to complete their exectution before going to the next level of the tree, each tasklet only has to wait for its imidiate next neighbour before being able to continue the reduction.
+The tree-based approach with handshakes works very similarly to the previous approach. But now instead of having to wait for all tasklets to complete their execution before going to the next level of the tree, each tasklet only has to wait for its immediate next neighbour before being able to continue the reduction.
 
 ```c
 // handshake case:
@@ -182,7 +182,7 @@ static T red_tree_based_handshakes(unsigned int tasklet_id) {
 }
 ```
 
-The mutex implementation is the simlest. We have one shared reduction value which is locked behind a mutex so each tasklet, accesses the value when it is done with its computation, deposits its part of the reduction and then vacates the mutex again.
+The mutex implementation is the simplest. We have one shared reduction value which is locked behind a mutex so each tasklet, accesses the value when it is done with its computation, deposits its part of the reduction and then vacates the mutex again.
 
 ```c
 // mutex case:
@@ -199,9 +199,9 @@ static T red_mutex(unsigned int tasklet_id) {
 
 ### Results
 
-In Fig~4, Fig\~5, and Fig\~6 We see the instruction count for the different implementations in different system configuriations. The figures show that increaseing the tasklet count pronounces the performance differences of the different implementations. We can also see that the relative difference between the different implementations decays significantly with increaseing input size, while the absolute difference stays roughly the same for all three input sizes. The figures show that `MUTEX` and `ZERO_TASKLET_COLLECTION` performa very similarly and `TREE_BASED_BARRIERS` and `TREE_BASED_HANDSHAKES` perform similarly. It can also be seen that the tree based implementations perform worse than the others.
+In Fig~4, Fig\~5, and Fig\~6 We see the instruction count for the different implementations in different system configurations. The figures show that increasing the tasklet count pronounces the performance differences of the different implementations. We can also see that the relative difference between the different implementations decays significantly with increasing input size, while the absolute difference stays roughly the same for all three input sizes. The figures show that `MUTEX` and `ZERO_TASKLET_COLLECTION` perform very similarly and `TREE_BASED_BARRIERS` and `TREE_BASED_HANDSHAKES` perform similarly. It can also be seen that the tree based implementations perform worse than the others.
 
-The first observation, that increasing the tasklet count increses the difference follows the expectation, as more tasklets gives more parallelism thus also increaseing the visibility of the observed effects. With this reasoning it also makes sense that for a single tasklet there is no difference in performance. That the absolute difference in performance for the different implementations stays the same over the different input sizes also follows the expectation. This is due to the parallelism only taking effect in the last combination step which scales in the number of tasklets and not in the size of the data. The interesting observation is the difference in performance of the tree-based and non-tree-based final reduction steps. This can be explained thorugh the different algorithms. The tree-based algorithms are more sophisticated algorithms than the non-tree-based algorithms. These more complex structures introduce additional computation. The tree-based final reduction includes two nested loops. While this could be efficient for more complex problems, it is simply a to expensive approach for the simple task of adding the values. So the mutex approach and the zero-tasklet approach which only need to wait for the last tasklet to complete and then can simply sum or have already summed the values outperform the tree-based approaches which at that point still need to do significant computation.
+The first observation, that increasing the tasklet count increases the difference follows the expectation, as more tasklets gives more parallelism thus increasing the visibility of the observed effects. With this reasoning it also makes sense that for a single tasklet there is no difference in performance. That the absolute difference in performance for the different implementations stays the same over the different input sizes also follows the expectation. This is due to the parallelism only taking effect in the last combination step which scales in the number of tasklets and not in the size of the data. The interesting observation is the difference in performance of the tree-based and non-tree-based final reduction steps. This can be explained by the different algorithms. The tree-based algorithms are more sophisticated algorithms than the non-tree-based algorithms. These more complex structures introduce additional computation. The tree-based final reduction includes two nested loops. While this could be efficient for more complex problems, it is simply too expensive an approach for the simple task of adding the values. So the mutex approach and the zero-tasklet approach which only need to wait for the last tasklet to complete and then can simply sum or have already summed the values outperform the tree-based approaches which at that point still need to do significant computation.
 
 ![Instruction count for the different implementations and different input sizes, with 1 tasklet.](img/lab3_task4_plot_1.png)
 
