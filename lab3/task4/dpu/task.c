@@ -241,7 +241,7 @@ int main_kernel1() {
     T tasklet_sum = red_tasklet(tasklet_id);
 
     if (tasklet_id == 0) {
-        mram_write(&tasklet_sum, (__mram_ptr T*)mram_base_addr_X, 8*(sizeof(T)/8 + 1));
+        mram_write(&tasklet_sum, (__mram_ptr T*)mram_base_addr_X, 8); // at most int64_t which is 8 bytes
     }
 
 #if defined(CYCLES) || defined(INSTRUCTIONS)

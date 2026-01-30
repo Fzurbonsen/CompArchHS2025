@@ -69,6 +69,13 @@ def main():
     # variable_types = ["INT32"]
     ops = ["AXPY", "AXMINY", "AXMULY", "AXDIVY"]
     
+    # nr_dpus = [1, 8, 16, 32]
+    # nr_tasklets = [1, 4, 8, 16]
+    # transfer_types = ["PARALLEL", "SERIAL"]
+    # input_sizes = [32768, 65536, 1048576]
+    # variable_types = ["CHAR", "INT64"]
+    # ops = ["AXPY"]
+    
     for op in ops:
         print(f"op: {op}")
         for transfer_type in transfer_types:

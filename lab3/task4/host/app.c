@@ -240,14 +240,14 @@ int main(int argc, char **argv) {
         i = 0;
         DPU_FOREACH(dpu_set, dpu, i) {
             // DPU_ASSERT(dpu_log_read(dpu, stderr));
-            DPU_ASSERT(dpu_prepare_xfer(dpu, &X[i * input_size_dpu_8bytes]));
+            DPU_ASSERT(dpu_prepare_xfer(dpu, &Y[i * 8]));
         }
         // push the buffers to the DPUs
         DPU_ASSERT(dpu_push_xfer(dpu_set,
                                 DPU_XFER_FROM_DPU,
                                 DPU_MRAM_HEAP_POINTER_NAME,
                                 0,
-                                sizeof(T),
+                                8,
                                 DPU_XFER_DEFAULT));
 
 #else // Parallel transfers
