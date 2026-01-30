@@ -14,6 +14,23 @@ import csv
 # function to compile and run an instance
 def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size):
 
+    # print("make clean")
+
+    # run 'make clean' first
+    clean_process = subprocess.run(
+        ["make", "clean"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+
+    if clean_process.returncode != 0:
+        print("Warning: 'make clean' failed!")
+        print(clean_process.stdout)
+        print(clean_process.stderr)
+
+    # print(f"make NR_DPUS={nr_dpus} NR_TASKLETS={nr_tasklets} TRANSFER={transfer} PRINT={do_print}")
+
     # compile
     process_compile = subprocess.Popen(
         ["make", f"NR_DPUS={nr_dpus}", f"NR_TASKLETS={nr_tasklets}", f"TRANSFER={transfer}", f"PRINT={do_print}"],
@@ -30,6 +47,8 @@ def compile_and_run(nr_dpus, nr_tasklets, transfer, do_print, input_size):
     if stderr:
         print(stderr)
         exit(1)
+
+    # print(f"./bin/host_code -i {input_size}")
 
     # run
     process_run = subprocess.Popen(
@@ -92,17 +111,43 @@ def plot_performance(transfer_type, nr_dpus, data):
 def print_to_csv(nr_dpus, input_sizes, transfer_types):
     # csv format:
     # nr_dpus,input_size,transfer_type,cpu-dpu_time,dpu-cpu_time
+
+    data_list = []
+
+    for i in range(10):
+
+        data_ = []
+
+        # compute data
+        for nr_dpu in nr_dpus:
+            for input_size in input_sizes:
+                for transfer_type in transfer_types:
+                    cpu_dpu_time, dpu_kernel_time, dpu_cpu_time = compile_and_run(nr_dpu, 16, transfer_type, 1, input_size)
+                    current_data = [nr_dpu, input_size, transfer_type, cpu_dpu_time, dpu_cpu_time]
+                    data_.append(current_data)
+
+        data_list.append(data_)
+
     header = ["nr_dpus","input_size","transfer_type","cpu-dpu_time","dpu-cpu_time"]
     data = [header]
 
-    # compute data
-    for nr_dpu in nr_dpus:
-        for input_size in input_sizes:
-            for transfer_type in transfer_types:
-                cpu_dpu_time, dpu_kernel_time, dpu_cpu_time = compile_and_run(nr_dpu, 16, transfer_type, 1, input_size)
-                current_data = [nr_dpu, input_size, transfer_type, cpu_dpu_time, dpu_cpu_time]
-                data.append(current_data)
-        
+    for i in range(len(data_list[0])):
+
+        avg_cpu_dpu_time = 0
+        avg_dpu_cpu_time = 0
+
+        for j in range(len(data_list)):
+
+            avg_cpu_dpu_time += data_list[j][i][3]
+            avg_dpu_cpu_time += data_list[j][i][4]
+
+        avg_cpu_dpu_time = avg_cpu_dpu_time / len(data_list)
+        avg_dpu_cpu_time = avg_dpu_cpu_time / len(data_list)
+
+        data_ = [data_list[0][i][0], data_list[0][i][1], data_list[0][i][2], avg_cpu_dpu_time, avg_dpu_cpu_time]
+
+        data.append(data_)
+            
 
     # write to CSV file
     with open("data.csv", "w", newline="") as file:

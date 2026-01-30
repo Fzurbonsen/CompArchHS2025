@@ -139,8 +139,8 @@ def plot_bandwidths(
 
     fig.tight_layout()
 
-    fig.savefig("lab3_task2_plot.png", dpi=300)
-    fig.savefig("lab3_task2_plot.eps")
+    fig.savefig("lab3_task1_plot.png", dpi=300)
+    fig.savefig("lab3_task1_plot.eps")
 
     plt.show()
 
